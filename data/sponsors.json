@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "name": "EcoRide Motors",
+    "logo": "https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=200",
+    "tier": "Platinum",
+    "website": "https://ecoride.com",
+    "description": "Leading manufacturer of eco-friendly motorcycles and electric bikes.",
+    "contribution": "Provides eco-friendly motorcycles for our rides and sponsors 1000 trees annually.",
+    "since": "2022",
+    "category": "Automotive",
+    "type": "sponsor"
+  },
+  {
+    "id": 2,
+    "name": "GreenTech Solutions",
+    "logo": "https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=200",
+    "tier": "Gold",
+    "website": "https://greentech.com",
+    "description": "Technology company focused on environmental solutions.",
+    "contribution": "Sponsors our mobile app development and provides GPS tracking devices.",
+    "since": "2023",
+    "category": "Technology",
+    "type": "sponsor"
+  }
+]

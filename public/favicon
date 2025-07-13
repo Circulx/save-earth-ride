@@ -1,0 +1,44 @@
+/**
+ * Favicon Setup Instructions
+ * 
+ * To add the Save Earth Ride logo as the website favicon:
+ * 
+ * 1. Take the existing logo file: /public/Save-earth-ride-logo.jpg
+ * 2. Convert it to ICO format using an online converter like:
+ *    - https://favicon.io/favicon-converter/
+ *    - https://convertio.co/jpg-ico/
+ *    - https://www.icoconverter.com/
+ * 
+ * 3. Generate multiple sizes (16x16, 32x32, 48x48) for better compatibility
+ * 
+ * 4. Replace this file with the generated favicon.ico
+ * 
+ * 5. Optionally, add these additional favicon files to /public/:
+ *    - favicon-16x16.png
+ *    - favicon-32x32.png
+ *    - apple-touch-icon.png (180x180)
+ *    - android-chrome-192x192.png
+ *    - android-chrome-512x512.png
+ * 
+ * 6. Update app/layout.tsx metadata to include all favicon references:
+ * 
+ * export const metadata: Metadata = {
+ *   icons: {
+ *     icon: [
+ *       { url: '/favicon.ico' },
+ *       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+ *       { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+ *     ],
+ *     apple: [
+ *       { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+ *     ],
+ *     other: [
+ *       { url: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+ *       { url: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
+ *     ],
+ *   },
+ * };
+ * 
+ * This will ensure the Save Earth Ride logo appears as the favicon
+ * across all browsers and devices with optimal quality and compatibility.
+ */

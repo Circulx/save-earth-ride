@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "date": "2024-12-15",
+    "title": "Amazon Conservation Mega Ride",
+    "location": "Manaus, Brazil",
+    "type": "Conservation",
+    "participants": 500,
+    "treesPlanted": 2500,
+    "description": "Our largest conservation ride yet, bringing together 500 riders from across South America.",
+    "image": "https://images.pexels.com/photos/1005648/pexels-photo-1005648.jpeg?auto=compress&cs=tinysrgb&w=500",
+    "side": "left"
+  },
+  {
+    "id": 2,
+    "date": "2024-11-20",
+    "title": "Himalayan Tree Drive",
+    "location": "Kathmandu, Nepal",
+    "type": "Tree Planting",
+    "participants": 200,
+    "treesPlanted": 1000,
+    "description": "Epic high-altitude ride through the Himalayas, planting native trees.",
+    "image": "https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=500",
+    "side": "right"
+  }
+]

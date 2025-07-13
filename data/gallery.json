@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "image": "https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=500",
+    "title": "Himalayan Tree Drive",
+    "location": "Nepal",
+    "city": "Kathmandu",
+    "year": "2024",
+    "tags": ["Tree Planting", "Mountain Ride"],
+    "description": "Epic ride through the Himalayas with 200 trees planted"
+  },
+  {
+    "id": 2,
+    "image": "https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=500",
+    "title": "Coastal Conservation Ride",
+    "location": "Australia",
+    "city": "Sydney",
+    "year": "2024",
+    "tags": ["Beach Cleanup", "Conservation"],
+    "description": "Coastal cleanup and tree planting along the Pacific Coast"
+  },
+  {
+    "id": 3,
+    "image": "https://images.pexels.com/photos/1005648/pexels-photo-1005648.jpeg?auto=compress&cs=tinysrgb&w=500",
+    "title": "Forest Restoration Project",
+    "location": "Canada",
+    "city": "Vancouver",
+    "year": "2023",
+    "tags": ["Reforestation", "Group Ride"],
+    "description": "Massive reforestation effort with local communities"
+  }
+]

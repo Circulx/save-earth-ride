@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "username": "admin",
+    "email": "admin@saveearthride.com",
+    "password": "saveearthride2024",
+    "role": "Super Admin",
+    "createdAt": "2024-01-01",
+    "lastLogin": "7/10/2025",
+    "status": "active"
+  },
+  {
+    "id": 2,
+    "username": "manager",
+    "email": "manager@saveearthride.com",
+    "password": "manager123",
+    "role": "Manager",
+    "createdAt": "2024-06-15",
+    "lastLogin": "2024-12-10",
+    "status": "active"
+  },
+  {
+    "id": 1751887968073,
+    "username": "kivtas",
+    "email": "kivtas@saveearthride.com",
+    "password": "password",
+    "role": "Admin",
+    "status": "active",
+    "createdAt": "2025-07-07",
+    "lastLogin": "7/10/2025"
+  },
+  {
+    "id": 1752155691389,
+    "username": "dummy",
+    "email": "dummy@123.com",
+    "password": "12345",
+    "role": "Super Admin",
+    "status": "active",
+    "createdAt": "2025-07-10",
+    "lastLogin": "7/10/2025"
+  }
+]

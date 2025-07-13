@@ -1,0 +1,16 @@
+{
+  "id": 1752333405068,
+  "type": "partner",
+  "companyName": "Dummy",
+  "contactPerson": "dummy",
+  "email": "Dummy@dummy.com",
+  "phone": "1234567890",
+  "website": "",
+  "category": "Automotive",
+  "description": "dummy test data ",
+  "contribution": "5500",
+  "proposedTier": "",
+  "message": "",
+  "submittedAt": "2025-07-12T15:16:45.068Z",
+  "status": "pending"
+}

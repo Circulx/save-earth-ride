@@ -1,0 +1,441 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 142 76% 36%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --secondary: 210 40% 98%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 98%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 98%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 142 76% 36%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 142 76% 36%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 142 76% 36%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* 
+  Professional Dark Mode Implementation
+  
+  This CSS provides a comprehensive dark mode system with:
+  - Smooth transitions between themes
+  - Proper contrast ratios for accessibility
+  - Consistent color schemes across all components
+  - Enhanced visual hierarchy in both modes
+*/
+
+/* Enhanced scrollbar with theme support */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-muted;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-primary rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-primary/80;
+}
+
+/* Smooth scrolling for better UX */
+html {
+  scroll-behavior: smooth;
+}
+
+/* 
+  Professional Theme Transitions
+  
+  Provides smooth, professional transitions when switching between themes.
+  All elements transition smoothly without jarring color changes.
+*/
+* {
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 
+  Enhanced Hero Gradient Animation
+  
+  Creates a professional animated gradient background for hero sections
+  that works beautifully in both light and dark modes.
+*/
+.hero-gradient {
+  background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
+  background-size: 400% 400%;
+  animation: gradient-shift 6s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* 
+  Professional Card Hover Effects
+  
+  Provides subtle, professional hover animations that work well in both themes
+  with proper shadow and transform effects for enhanced user experience.
+*/
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  @apply shadow-lg;
+}
+
+.dark .card-hover:hover {
+  @apply shadow-2xl shadow-black/20;
+}
+
+/* 
+  Floating Animation for Interactive Elements
+  
+  Subtle floating animation for decorative elements that enhances
+  the visual appeal without being distracting in either theme.
+*/
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.float-animation {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* 
+  Enhanced Pulse Animation
+  
+  Improved pulse effect for important elements like the tree counter
+  with better visual feedback that works in both light and dark modes.
+*/
+@keyframes pulse-green {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+}
+
+.pulse-green {
+  animation: pulse-green 2s infinite;
+}
+
+/* 
+  Bike-themed Animations
+  
+  Custom animations for motorcycle-related elements that add personality
+  to the site while maintaining professionalism in both themes.
+*/
+@keyframes bike-bounce {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(5deg);
+  }
+}
+
+.bike-bounce {
+  animation: bike-bounce 2s ease-in-out infinite;
+}
+
+/* 
+  Professional Text Utilities
+  
+  Helper classes for text truncation and line clamping that work
+  consistently across different screen sizes and both themes.
+*/
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+/* 
+  Enhanced Focus Styles for Accessibility
+  
+  Professional focus indicators that are clearly visible in both themes
+  and provide excellent navigation feedback for keyboard users.
+*/
+.focus-visible:focus {
+  @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
+}
+
+/* 
+  Professional Loading States
+  
+  Smooth loading animations for better user experience during
+  data fetching and form submissions in both light and dark modes.
+*/
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* 
+  Enhanced Button Hover Effects
+  
+  Professional scale and shadow effects for interactive elements
+  that provide clear feedback without being overwhelming in either theme.
+*/
+.btn-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-hover:hover {
+  transform: translateY(-1px);
+  @apply shadow-md;
+}
+
+.btn-hover:active {
+  transform: translateY(0);
+  @apply shadow-sm;
+}
+
+/* 
+  Professional Dark Mode Image Adjustments
+  
+  Subtle adjustments for images in dark mode to maintain proper
+  contrast and visibility without affecting the overall design.
+*/
+.dark img {
+  filter: brightness(0.9);
+}
+
+.dark img:hover {
+  filter: brightness(1);
+  transition: filter 0.3s ease;
+}
+
+/* 
+  Enhanced Form Input Styling
+  
+  Professional styling for form inputs that work beautifully in both
+  light and dark themes with proper focus states and transitions.
+*/
+input:focus,
+textarea:focus,
+select:focus {
+  @apply ring-2 ring-primary ring-offset-2 ring-offset-background;
+}
+
+/* 
+  Professional Responsive Typography
+  
+  Ensures text remains readable and properly sized across all
+  device sizes and theme modes with optimal contrast ratios.
+*/
+@media (max-width: 640px) {
+  .text-responsive {
+    @apply text-sm;
+  }
+}
+
+@media (min-width: 641px) {
+  .text-responsive {
+    @apply text-base;
+  }
+}
+
+/* 
+  Professional Print Styles
+  
+  Optimized styles for printing that work well regardless of
+  the current theme setting, ensuring proper document output.
+*/
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  * {
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+  }
+}
+
+/* 
+  Enhanced Dark Mode Specific Styles
+  
+  Additional styling specifically for dark mode to ensure
+  optimal readability and visual hierarchy.
+*/
+.dark {
+  /* Enhanced text contrast in dark mode */
+  color-scheme: dark;
+}
+
+.dark .bg-white {
+  @apply bg-gray-800;
+}
+
+.dark .text-gray-900 {
+  @apply text-gray-100;
+}
+
+.dark .text-gray-800 {
+  @apply text-gray-200;
+}
+
+.dark .text-gray-700 {
+  @apply text-gray-300;
+}
+
+.dark .text-gray-600 {
+  @apply text-gray-400;
+}
+
+/* 
+  Professional Border and Shadow Adjustments for Dark Mode
+  
+  Ensures borders and shadows are properly visible and aesthetically
+  pleasing in dark mode while maintaining design consistency.
+*/
+.dark .border-gray-200 {
+  @apply border-gray-700;
+}
+
+.dark .border-gray-300 {
+  @apply border-gray-600;
+}
+
+.dark .shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+}
+
+.dark .shadow-xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* 
+  Professional Background Adjustments for Dark Mode
+  
+  Ensures all background colors work harmoniously in dark mode
+  while maintaining proper contrast and visual hierarchy.
+*/
+.dark .bg-gray-50 {
+  @apply bg-gray-900;
+}
+
+.dark .bg-gray-100 {
+  @apply bg-gray-800;
+}
+
+.dark .bg-green-50 {
+  @apply bg-green-900/20;
+}
+
+.dark .bg-blue-50 {
+  @apply bg-blue-900/20;
+}
+
+.dark .bg-purple-50 {
+  @apply bg-purple-900/20;
+}
+
+.dark .bg-orange-50 {
+  @apply bg-orange-900/20;
+}
+
+.dark .bg-yellow-50 {
+  @apply bg-yellow-900/20;
+}
+
+/* 
+  Enhanced Gradient Text for Dark Mode
+  
+  Ensures gradient text remains vibrant and readable in dark mode
+  while maintaining the brand's visual identity.
+*/
+.dark .bg-gradient-to-r.from-green-600.to-blue-600 {
+  @apply from-green-400 to-blue-400;
+}
+
+.dark .bg-gradient-to-r.from-green-600.via-blue-600.to-purple-600 {
+  @apply from-green-400 via-blue-400 to-purple-400;
+}
