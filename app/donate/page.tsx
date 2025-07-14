@@ -1,107 +1,106 @@
-'use client';
+"use client"
 
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { Heart, TreePine, Users, Globe, CreditCard, Shield } from 'lucide-react';
-import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
+import { useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
+import { Heart, TreePine, Users, Globe, CreditCard, Shield } from "lucide-react"
+import { toast } from "sonner"
 
-const donationAmounts = [25, 50, 100, 250, 500, 1000];
+const donationAmounts = [25, 50, 100, 250, 500, 1000]
 
 const currencies = [
-  { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
-  { code: 'USD', symbol: '$', name: 'US Dollar' },
-  { code: 'EUR', symbol: '€', name: 'Euro' },
-  { code: 'GBP', symbol: '£', name: 'British Pound' },
-  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
-  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
-  { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
-  { code: 'BRL', symbol: 'R$', name: 'Brazilian Real' },
-];
+  { code: "INR", symbol: "₹", name: "Indian Rupee" },
+  { code: "USD", symbol: "$", name: "US Dollar" },
+  { code: "EUR", symbol: "€", name: "Euro" },
+  { code: "GBP", symbol: "£", name: "British Pound" },
+  { code: "CAD", symbol: "C$", name: "Canadian Dollar" },
+  { code: "AUD", symbol: "A$", name: "Australian Dollar" },
+  { code: "JPY", symbol: "¥", name: "Japanese Yen" },
+  { code: "BRL", symbol: "R$", name: "Brazilian Real" },
+]
 
 const projects = [
   {
-    id: 'general',
-    name: 'General Fund',
-    description: 'Support all our environmental initiatives',
+    id: "general",
+    name: "General Fund",
+    description: "Support all our environmental initiatives",
     icon: Globe,
-    color: 'text-green-600',
+    color: "text-green-600",
   },
   {
-    id: 'trees',
-    name: 'Tree Planting',
-    description: 'Direct funding for tree plantation programs',
+    id: "trees",
+    name: "Tree Planting",
+    description: "Direct funding for tree plantation programs",
     icon: TreePine,
-    color: 'text-green-700',
+    color: "text-green-700",
   },
   {
-    id: 'community',
-    name: 'Community Events',
-    description: 'Organize environmental awareness events',
+    id: "community",
+    name: "Community Events",
+    description: "Organize environmental awareness events",
     icon: Users,
-    color: 'text-blue-600',
+    color: "text-blue-600",
   },
-];
+]
 
-// Define the Donation type if not already defined
+// Define the Donation type
 interface Donation {
-  id: string;
-  donationDate: string;
-  donorName: string;
-  email: string;
-  phone: string;
-  address: string;
-  amount: number;
-  currency: string;
-  project: string;
-  donationType: string;
-  status: string;
-  paymentMethod: string;
-  transactionId: string;
-  isAnonymous: boolean;
-  treesEquivalent: number;
-  co2Offset: number;
-  communitiesHelped: number;
+  id: string
+  donationDate: string
+  donorName: string
+  email: string
+  phone: string
+  address: string
+  amount: number
+  currency: string
+  project: string
+  donationType: string
+  status: string
+  paymentMethod: string
+  transactionId: string
+  isAnonymous: boolean
+  treesEquivalent: number
+  co2Offset: number
+  communitiesHelped: number
 }
 
 export default function DonatePage() {
-  const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
-  const [customAmount, setCustomAmount] = useState('');
-  const [selectedCurrency, setSelectedCurrency] = useState(currencies[0]);
-  const [selectedProject, setSelectedProject] = useState('general');
-  const [donationType, setDonationType] = useState<'one-time' | 'monthly'>('one-time');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
+  const [customAmount, setCustomAmount] = useState("")
+  const [selectedCurrency, setSelectedCurrency] = useState(currencies[0])
+  const [selectedProject, setSelectedProject] = useState("general")
+  const [donationType, setDonationType] = useState<"one-time" | "monthly">("one-time")
+  const [isProcessing, setIsProcessing] = useState(false)
   const [donorInfo, setDonorInfo] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    address: '',
-    anonymous: false
-  });
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+    anonymous: false,
+  })
 
   const getCurrentGoal = () => {
-    const raised = 47850;
-    const goal = 100000;
-    const percentage = (raised / goal) * 100;
-    return { raised, goal, percentage };
-  };
+    const raised = 47850
+    const goal = 100000
+    const percentage = (raised / goal) * 100
+    return { raised, goal, percentage }
+  }
 
-  const goal = getCurrentGoal();
+  const goal = getCurrentGoal()
 
   /**
    * Excel Storage Function for Donations
-   * 
+   *
    * This function saves donation data to both localStorage and Excel file.
    * The Excel file is automatically downloaded for admin access.
    * In production, this would be replaced with API calls to MongoDB.
-   * 
+   *
    * Features:
    * - Comprehensive donation tracking with all details
    * - Automatic Excel file generation and download
@@ -111,19 +110,24 @@ export default function DonatePage() {
    */
   const saveDonationToExcel = async (donationData: any) => {
     try {
+      // Check if we're in browser environment
+      if (typeof window === "undefined") {
+        throw new Error("Excel functionality only available in browser")
+      }
+
       // Load existing donations from localStorage
-      const existingDonations = JSON.parse(localStorage.getItem('donations') || '[]');
-      
+      const existingDonations = JSON.parse(localStorage.getItem("donations") || "[]")
+
       // Create comprehensive donation record
       const newDonation = {
         id: Date.now(),
         timestamp: new Date().toISOString(),
-        donationDate: new Date().toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit'
+        donationDate: new Date().toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
         }),
-        donorName: donationData.anonymous ? 'Anonymous' : donationData.name,
+        donorName: donationData.anonymous ? "Anonymous" : donationData.name,
         email: donationData.email,
         phone: donationData.phone,
         address: donationData.address,
@@ -131,53 +135,56 @@ export default function DonatePage() {
         currency: donationData.currency,
         project: donationData.project,
         donationType: donationData.type,
-        status: 'Completed',
-        paymentMethod: 'Razorpay',
+        status: "Completed",
+        paymentMethod: "Razorpay",
         transactionId: `TXN_${Date.now()}`,
         isAnonymous: donationData.anonymous,
         // Calculate impact metrics
         treesEquivalent: Math.floor(donationData.amount / 5),
         co2Offset: Math.floor(donationData.amount * 0.5),
-        communitiesHelped: Math.floor(donationData.amount / 25)
-      };
-      
+        communitiesHelped: Math.floor(donationData.amount / 25),
+      }
+
       // Add to existing donations (newest first)
-      existingDonations.unshift(newDonation);
-      
+      existingDonations.unshift(newDonation)
+
       // Keep only last 1000 donations to prevent excessive storage
       if (existingDonations.length > 1000) {
-        existingDonations.splice(1000);
+        existingDonations.splice(1000)
       }
-      
+
       // Save to localStorage for persistence
-      localStorage.setItem('donations', JSON.stringify(existingDonations));
-      
+      localStorage.setItem("donations", JSON.stringify(existingDonations))
+
+      // Dynamic import of xlsx to avoid build issues
+      const XLSX = await import("xlsx")
+
       // Create comprehensive Excel file with all donation data
       const excelData = (existingDonations as Donation[]).map((donation: Donation) => ({
-        'Donation ID': donation.id,
-        'Date': donation.donationDate,
-        'Donor Name': donation.donorName,
-        'Email': donation.email,
-        'Phone': donation.phone,
-        'Address': donation.address,
-        'Amount': donation.amount,
-        'Currency': donation.currency,
-        'Project': donation.project,
-        'Type': donation.donationType,
-        'Status': donation.status,
-        'Payment Method': donation.paymentMethod,
-        'Transaction ID': donation.transactionId,
-        'Anonymous': donation.isAnonymous ? 'Yes' : 'No',
-        'Trees Equivalent': donation.treesEquivalent,
-        'CO2 Offset (kg/year)': donation.co2Offset,
-        'Communities Helped': donation.communitiesHelped
-      }));
-      
+        "Donation ID": donation.id,
+        Date: donation.donationDate,
+        "Donor Name": donation.donorName,
+        Email: donation.email,
+        Phone: donation.phone,
+        Address: donation.address,
+        Amount: donation.amount,
+        Currency: donation.currency,
+        Project: donation.project,
+        Type: donation.donationType,
+        Status: donation.status,
+        "Payment Method": donation.paymentMethod,
+        "Transaction ID": donation.transactionId,
+        Anonymous: donation.isAnonymous ? "Yes" : "No",
+        "Trees Equivalent": donation.treesEquivalent,
+        "CO2 Offset (kg/year)": donation.co2Offset,
+        "Communities Helped": donation.communitiesHelped,
+      }))
+
       // Generate and download Excel file
-      const ws = XLSX.utils.json_to_sheet(excelData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Donations');
-      
+      const ws = XLSX.utils.json_to_sheet(excelData)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, "Donations")
+
       // Auto-fit column widths for better readability
       const colWidths = [
         { wch: 15 }, // Donation ID
@@ -187,7 +194,7 @@ export default function DonatePage() {
         { wch: 15 }, // Phone
         { wch: 30 }, // Address
         { wch: 10 }, // Amount
-        { wch: 8 },  // Currency
+        { wch: 8 }, // Currency
         { wch: 15 }, // Project
         { wch: 10 }, // Type
         { wch: 10 }, // Status
@@ -196,90 +203,109 @@ export default function DonatePage() {
         { wch: 10 }, // Anonymous
         { wch: 12 }, // Trees Equivalent
         { wch: 15 }, // CO2 Offset
-        { wch: 15 }  // Communities Helped
-      ];
-      ws['!cols'] = colWidths;
-      
-      XLSX.writeFile(wb, `donations_${new Date().toISOString().split('T')[0]}.xlsx`);
-      
+        { wch: 15 }, // Communities Helped
+      ]
+      ws["!cols"] = colWidths
+
+      XLSX.writeFile(wb, `donations_${new Date().toISOString().split("T")[0]}.xlsx`)
+
       // Update recent donations for admin dashboard
       const recentDonations = existingDonations.slice(0, 5).map((d: Donation) => ({
         id: d.id,
         name: d.donorName,
         amount: d.amount,
         currency: d.currency,
-        date: d.donationDate
-      }));
-      localStorage.setItem('recentDonations', JSON.stringify(recentDonations));
-      
+        date: d.donationDate,
+      }))
+      localStorage.setItem("recentDonations", JSON.stringify(recentDonations))
+
       // Trigger real-time update for admin dashboard
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('adminDataUpdate', { 
-          detail: { section: 'donations', data: recentDonations } 
-        }));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("adminDataUpdate", {
+            detail: { section: "donations", data: recentDonations },
+          }),
+        )
       }
-      
-      return true;
+
+      return true
     } catch (error) {
-      console.error('Error saving donation:', error);
-      throw new Error('Failed to save donation data');
+      console.error("Error saving donation:", error)
+      // Fallback: save to localStorage without Excel export
+      if (typeof window !== "undefined") {
+        const existingDonations = JSON.parse(localStorage.getItem("donations") || "[]")
+        const newDonation = {
+          id: Date.now(),
+          timestamp: new Date().toISOString(),
+          donationDate: new Date().toLocaleDateString(),
+          donorName: donationData.anonymous ? "Anonymous" : donationData.name,
+          email: donationData.email,
+          amount: donationData.amount,
+          currency: donationData.currency,
+          project: donationData.project,
+          status: "Completed",
+        }
+        existingDonations.unshift(newDonation)
+        localStorage.setItem("donations", JSON.stringify(existingDonations))
+      }
+      return true // Don't throw error to user
     }
-  };
+  }
 
   const handleDonate = async () => {
-    const amount = selectedAmount || parseFloat(customAmount);
-    
+    const amount = selectedAmount || Number.parseFloat(customAmount)
+
     // Comprehensive validation
     if (!amount || amount <= 0) {
-      toast.error('Please enter a valid donation amount');
-      return;
+      toast.error("Please enter a valid donation amount")
+      return
     }
 
     if (!donorInfo.name.trim() || !donorInfo.email.trim()) {
-      toast.error('Please provide your name and email address');
-      return;
+      toast.error("Please provide your name and email address")
+      return
     }
 
     if (!/\S+@\S+\.\S+/.test(donorInfo.email)) {
-      toast.error('Please enter a valid email address');
-      return;
+      toast.error("Please enter a valid email address")
+      return
     }
 
-    setIsProcessing(true);
-    
+    setIsProcessing(true)
+
     try {
       const donationData = {
         amount,
         currency: selectedCurrency.code,
         project: selectedProject,
         type: donationType,
-        ...donorInfo
-      };
+        ...donorInfo,
+      }
 
       // Save donation to Excel with comprehensive tracking
-      await saveDonationToExcel(donationData);
+      await saveDonationToExcel(donationData)
 
       // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      toast.success(`Thank you for your ${selectedCurrency.symbol}${amount} donation!`);
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      toast.success(`Thank you for your ${selectedCurrency.symbol}${amount} donation!`)
+
       // Reset form for potential new donation
-      setSelectedAmount(null);
-      setCustomAmount('');
+      setSelectedAmount(null)
+      setCustomAmount("")
       setDonorInfo({
-        name: '',
-        email: '',
-        phone: '',
-        address: '',
-        anonymous: false
-      });
+        name: "",
+        email: "",
+        phone: "",
+        address: "",
+        anonymous: false,
+      })
     } catch (error) {
-      toast.error('Payment failed. Please try again.');
+      toast.error("Payment failed. Please try again.")
     } finally {
-      setIsProcessing(false);
+      setIsProcessing(false)
     }
-  };
+  }
 
   const getConvertedAmount = (amount: number) => {
     // In a real app, this would use a currency conversion API
@@ -292,20 +318,18 @@ export default function DonatePage() {
       AUD: 1.35,
       JPY: 110,
       BRL: 5.2,
-    };
-    
-    const converted = amount * exchangeRates[selectedCurrency.code];
-    return Math.round(converted);
-  };
+    }
+
+    const converted = amount * exchangeRates[selectedCurrency.code]
+    return Math.round(converted)
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-12">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-foreground mb-4">
-            Support Our Mission
-          </h1>
+          <h1 className="text-4xl font-bold text-foreground mb-4">Support Our Mission</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Help us plant more trees, organize environmental events, and build a sustainable future for our planet.
           </p>
@@ -331,7 +355,7 @@ export default function DonatePage() {
                       <Input
                         id="donorName"
                         value={donorInfo.name}
-                        onChange={(e) => setDonorInfo({...donorInfo, name: e.target.value})}
+                        onChange={(e) => setDonorInfo({ ...donorInfo, name: e.target.value })}
                         placeholder="Enter your full name"
                         className="bg-background"
                       />
@@ -342,7 +366,7 @@ export default function DonatePage() {
                         id="donorEmail"
                         type="email"
                         value={donorInfo.email}
-                        onChange={(e) => setDonorInfo({...donorInfo, email: e.target.value})}
+                        onChange={(e) => setDonorInfo({ ...donorInfo, email: e.target.value })}
                         placeholder="Enter your email"
                         className="bg-background"
                       />
@@ -354,7 +378,7 @@ export default function DonatePage() {
                       <Input
                         id="donorPhone"
                         value={donorInfo.phone}
-                        onChange={(e) => setDonorInfo({...donorInfo, phone: e.target.value})}
+                        onChange={(e) => setDonorInfo({ ...donorInfo, phone: e.target.value })}
                         placeholder="Enter your phone number"
                         className="bg-background"
                       />
@@ -364,7 +388,7 @@ export default function DonatePage() {
                         type="checkbox"
                         id="anonymous"
                         checked={donorInfo.anonymous}
-                        onChange={(e) => setDonorInfo({...donorInfo, anonymous: e.target.checked})}
+                        onChange={(e) => setDonorInfo({ ...donorInfo, anonymous: e.target.checked })}
                       />
                       <Label htmlFor="anonymous">Make this donation anonymous</Label>
                     </div>
@@ -377,8 +401,8 @@ export default function DonatePage() {
                   <Select
                     value={selectedCurrency.code}
                     onValueChange={(value) => {
-                      const currency = currencies.find(c => c.code === value);
-                      if (currency) setSelectedCurrency(currency);
+                      const currency = currencies.find((c) => c.code === value)
+                      if (currency) setSelectedCurrency(currency)
                     }}
                   >
                     <SelectTrigger className="bg-background">
@@ -399,7 +423,7 @@ export default function DonatePage() {
                   <Label>Donation Type</Label>
                   <RadioGroup
                     value={donationType}
-                    onValueChange={(value) => setDonationType(value as 'one-time' | 'monthly')}
+                    onValueChange={(value) => setDonationType(value as "one-time" | "monthly")}
                     className="flex space-x-6"
                   >
                     <div className="flex items-center space-x-2">
@@ -422,16 +446,17 @@ export default function DonatePage() {
                         key={amount}
                         variant={selectedAmount === getConvertedAmount(amount) ? "default" : "outline"}
                         onClick={() => {
-                          setSelectedAmount(getConvertedAmount(amount));
-                          setCustomAmount('');
+                          setSelectedAmount(getConvertedAmount(amount))
+                          setCustomAmount("")
                         }}
                         className="h-12"
                       >
-                        {selectedCurrency.symbol}{getConvertedAmount(amount)}
+                        {selectedCurrency.symbol}
+                        {getConvertedAmount(amount)}
                       </Button>
                     ))}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="custom-amount">Custom Amount</Label>
                     <div className="relative">
@@ -444,8 +469,8 @@ export default function DonatePage() {
                         placeholder="Enter amount"
                         value={customAmount}
                         onChange={(e) => {
-                          setCustomAmount(e.target.value);
-                          setSelectedAmount(null);
+                          setCustomAmount(e.target.value)
+                          setSelectedAmount(null)
                         }}
                         className="pl-8 bg-background"
                       />
@@ -456,13 +481,9 @@ export default function DonatePage() {
                 {/* Project Selection */}
                 <div className="space-y-4">
                   <Label>Choose Project</Label>
-                  <RadioGroup
-                    value={selectedProject}
-                    onValueChange={setSelectedProject}
-                    className="space-y-3"
-                  >
+                  <RadioGroup value={selectedProject} onValueChange={setSelectedProject} className="space-y-3">
                     {projects.map((project) => {
-                      const Icon = project.icon;
+                      const Icon = project.icon
                       return (
                         <div key={project.id} className="flex items-center space-x-3">
                           <RadioGroupItem value={project.id} id={project.id} />
@@ -474,7 +495,7 @@ export default function DonatePage() {
                             </div>
                           </Label>
                         </div>
-                      );
+                      )
                     })}
                   </RadioGroup>
                 </div>
@@ -487,12 +508,13 @@ export default function DonatePage() {
                   size="lg"
                 >
                   {isProcessing ? (
-                    'Processing...'
+                    "Processing..."
                   ) : (
                     <>
                       <CreditCard className="h-5 w-5 mr-2" />
-                      Donate {selectedCurrency.symbol}{selectedAmount || customAmount}
-                      {donationType === 'monthly' && '/month'}
+                      Donate {selectedCurrency.symbol}
+                      {selectedAmount || customAmount}
+                      {donationType === "monthly" && "/month"}
                     </>
                   )}
                 </Button>
@@ -516,12 +538,8 @@ export default function DonatePage() {
               <CardContent>
                 <div className="space-y-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      ${goal.raised.toLocaleString()}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      raised of ${goal.goal.toLocaleString()} goal
-                    </div>
+                    <div className="text-2xl font-bold text-green-600">${goal.raised.toLocaleString()}</div>
+                    <div className="text-sm text-muted-foreground">raised of ${goal.goal.toLocaleString()} goal</div>
                   </div>
                   <Progress value={goal.percentage} className="h-3" />
                   <div className="text-center text-sm text-muted-foreground">
@@ -540,28 +558,29 @@ export default function DonatePage() {
                 <div className="space-y-4">
                   <div className="text-center">
                     <div className="text-lg font-medium">
-                      {selectedCurrency.symbol}{selectedAmount || customAmount || 0}
+                      {selectedCurrency.symbol}
+                      {selectedAmount || customAmount || 0}
                     </div>
                     <div className="text-sm text-muted-foreground">donation can provide</div>
                   </div>
-                  
+
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Trees planted</span>
                       <Badge variant="outline">
-                        {Math.floor((selectedAmount || parseFloat(customAmount) || 0) / 5)} trees
+                        {Math.floor((selectedAmount || Number.parseFloat(customAmount) || 0) / 5)} trees
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm">CO2 offset</span>
                       <Badge variant="outline">
-                        {Math.floor((selectedAmount || parseFloat(customAmount) || 0) * 0.5)} kg/year
+                        {Math.floor((selectedAmount || Number.parseFloat(customAmount) || 0) * 0.5)} kg/year
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Communities helped</span>
                       <Badge variant="outline">
-                        {Math.floor((selectedAmount || parseFloat(customAmount) || 0) / 25)} communities
+                        {Math.floor((selectedAmount || Number.parseFloat(customAmount) || 0) / 25)} communities
                       </Badge>
                     </div>
                   </div>
@@ -599,5 +618,5 @@ export default function DonatePage() {
         </div>
       </div>
     </div>
-  );
+  )
 }
