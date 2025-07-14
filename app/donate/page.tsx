@@ -112,7 +112,7 @@ export default function DonatePage() {
     try {
       // Check if we're in browser environment
       if (typeof window === "undefined") {
-        throw new Error("Excel functionality only available in browser")
+        return true // Skip Excel functionality during SSR
       }
 
       // Load existing donations from localStorage
@@ -156,58 +156,63 @@ export default function DonatePage() {
       // Save to localStorage for persistence
       localStorage.setItem("donations", JSON.stringify(existingDonations))
 
-      // Dynamic import of xlsx to avoid build issues
-      const XLSX = await import("xlsx")
+      // Try to create Excel file only in browser environment
+      try {
+        // Dynamic import of xlsx to avoid build issues
+        const XLSX = await import("xlsx")
 
-      // Create comprehensive Excel file with all donation data
-      const excelData = (existingDonations as Donation[]).map((donation: Donation) => ({
-        "Donation ID": donation.id,
-        Date: donation.donationDate,
-        "Donor Name": donation.donorName,
-        Email: donation.email,
-        Phone: donation.phone,
-        Address: donation.address,
-        Amount: donation.amount,
-        Currency: donation.currency,
-        Project: donation.project,
-        Type: donation.donationType,
-        Status: donation.status,
-        "Payment Method": donation.paymentMethod,
-        "Transaction ID": donation.transactionId,
-        Anonymous: donation.isAnonymous ? "Yes" : "No",
-        "Trees Equivalent": donation.treesEquivalent,
-        "CO2 Offset (kg/year)": donation.co2Offset,
-        "Communities Helped": donation.communitiesHelped,
-      }))
+        // Create comprehensive Excel file with all donation data
+        const excelData = (existingDonations as Donation[]).map((donation: Donation) => ({
+          "Donation ID": donation.id,
+          Date: donation.donationDate,
+          "Donor Name": donation.donorName,
+          Email: donation.email,
+          Phone: donation.phone,
+          Address: donation.address,
+          Amount: donation.amount,
+          Currency: donation.currency,
+          Project: donation.project,
+          Type: donation.donationType,
+          Status: donation.status,
+          "Payment Method": donation.paymentMethod,
+          "Transaction ID": donation.transactionId,
+          Anonymous: donation.isAnonymous ? "Yes" : "No",
+          "Trees Equivalent": donation.treesEquivalent,
+          "CO2 Offset (kg/year)": donation.co2Offset,
+          "Communities Helped": donation.communitiesHelped,
+        }))
 
-      // Generate and download Excel file
-      const ws = XLSX.utils.json_to_sheet(excelData)
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, "Donations")
+        // Generate and download Excel file
+        const ws = XLSX.utils.json_to_sheet(excelData)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, "Donations")
 
-      // Auto-fit column widths for better readability
-      const colWidths = [
-        { wch: 15 }, // Donation ID
-        { wch: 12 }, // Date
-        { wch: 20 }, // Donor Name
-        { wch: 30 }, // Email
-        { wch: 15 }, // Phone
-        { wch: 30 }, // Address
-        { wch: 10 }, // Amount
-        { wch: 8 }, // Currency
-        { wch: 15 }, // Project
-        { wch: 10 }, // Type
-        { wch: 10 }, // Status
-        { wch: 15 }, // Payment Method
-        { wch: 20 }, // Transaction ID
-        { wch: 10 }, // Anonymous
-        { wch: 12 }, // Trees Equivalent
-        { wch: 15 }, // CO2 Offset
-        { wch: 15 }, // Communities Helped
-      ]
-      ws["!cols"] = colWidths
+        // Auto-fit column widths for better readability
+        const colWidths = [
+          { wch: 15 }, // Donation ID
+          { wch: 12 }, // Date
+          { wch: 20 }, // Donor Name
+          { wch: 30 }, // Email
+          { wch: 15 }, // Phone
+          { wch: 30 }, // Address
+          { wch: 10 }, // Amount
+          { wch: 8 }, // Currency
+          { wch: 15 }, // Project
+          { wch: 10 }, // Type
+          { wch: 10 }, // Status
+          { wch: 15 }, // Payment Method
+          { wch: 20 }, // Transaction ID
+          { wch: 10 }, // Anonymous
+          { wch: 12 }, // Trees Equivalent
+          { wch: 15 }, // CO2 Offset
+          { wch: 15 }, // Communities Helped
+        ]
+        ws["!cols"] = colWidths
 
-      XLSX.writeFile(wb, `donations_${new Date().toISOString().split("T")[0]}.xlsx`)
+        XLSX.writeFile(wb, `donations_${new Date().toISOString().split("T")[0]}.xlsx`)
+      } catch (excelError) {
+        console.log("Excel export not available, data saved to localStorage")
+      }
 
       // Update recent donations for admin dashboard
       const recentDonations = existingDonations.slice(0, 5).map((d: Donation) => ({
@@ -231,24 +236,27 @@ export default function DonatePage() {
       return true
     } catch (error) {
       console.error("Error saving donation:", error)
-      // Fallback: save to localStorage without Excel export
+      // Fallback: save basic data to localStorage
       if (typeof window !== "undefined") {
-        const existingDonations = JSON.parse(localStorage.getItem("donations") || "[]")
-        const newDonation = {
-          id: Date.now(),
-          timestamp: new Date().toISOString(),
-          donationDate: new Date().toLocaleDateString(),
-          donorName: donationData.anonymous ? "Anonymous" : donationData.name,
-          email: donationData.email,
-          amount: donationData.amount,
-          currency: donationData.currency,
-          project: donationData.project,
-          status: "Completed",
+        try {
+          const existingDonations = JSON.parse(localStorage.getItem("donations") || "[]")
+          const newDonation = {
+            id: Date.now(),
+            timestamp: new Date().toISOString(),
+            donorName: donationData.anonymous ? "Anonymous" : donationData.name,
+            email: donationData.email,
+            amount: donationData.amount,
+            currency: donationData.currency,
+            project: donationData.project,
+            status: "Completed",
+          }
+          existingDonations.unshift(newDonation)
+          localStorage.setItem("donations", JSON.stringify(existingDonations))
+        } catch (storageError) {
+          console.error("Failed to save to localStorage:", storageError)
         }
-        existingDonations.unshift(newDonation)
-        localStorage.setItem("donations", JSON.stringify(existingDonations))
       }
-      return true // Don't throw error to user
+      return true // Don't fail the donation process
     }
   }
 
