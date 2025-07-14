@@ -152,9 +152,7 @@ const groupPhotosByYear = (photos: any[]) => {
   }, {} as Record<string, any[]>);
 
   // Sort photos within each year by title
-  Object.keys(grouped).forEach(year => {
-    grouped[year].sort((a, b) => a.title.localeCompare(b.title));
-  });
+ 
 
   return grouped;
 };
