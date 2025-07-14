@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,7 +49,6 @@ const projects = [
   },
 ]
 
-// Define the Donation type
 interface Donation {
   id: string
   donationDate: string
@@ -77,6 +76,7 @@ export default function DonatePage() {
   const [selectedProject, setSelectedProject] = useState("general")
   const [donationType, setDonationType] = useState<"one-time" | "monthly">("one-time")
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isClient, setIsClient] = useState(false)
   const [donorInfo, setDonorInfo] = useState({
     name: "",
     email: "",
@@ -84,6 +84,11 @@ export default function DonatePage() {
     address: "",
     anonymous: false,
   })
+
+  // Ensure we're on the client side
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   const getCurrentGoal = () => {
     const raised = 47850
@@ -94,27 +99,10 @@ export default function DonatePage() {
 
   const goal = getCurrentGoal()
 
-  /**
-   * Excel Storage Function for Donations
-   *
-   * This function saves donation data to both localStorage and Excel file.
-   * The Excel file is automatically downloaded for admin access.
-   * In production, this would be replaced with API calls to MongoDB.
-   *
-   * Features:
-   * - Comprehensive donation tracking with all details
-   * - Automatic Excel file generation and download
-   * - Real-time admin dashboard updates
-   * - Currency conversion tracking
-   * - Anonymous donation support
-   */
-  const saveDonationToExcel = async (donationData: any) => {
-    try {
-      // Check if we're in browser environment
-      if (typeof window === "undefined") {
-        return true // Skip Excel functionality during SSR
-      }
+  const saveDonationData = async (donationData: any) => {
+    if (!isClient) return true
 
+    try {
       // Load existing donations from localStorage
       const existingDonations = JSON.parse(localStorage.getItem("donations") || "[]")
 
@@ -139,7 +127,6 @@ export default function DonatePage() {
         paymentMethod: "Razorpay",
         transactionId: `TXN_${Date.now()}`,
         isAnonymous: donationData.anonymous,
-        // Calculate impact metrics
         treesEquivalent: Math.floor(donationData.amount / 5),
         co2Offset: Math.floor(donationData.amount * 0.5),
         communitiesHelped: Math.floor(donationData.amount / 25),
@@ -156,9 +143,8 @@ export default function DonatePage() {
       // Save to localStorage for persistence
       localStorage.setItem("donations", JSON.stringify(existingDonations))
 
-      // Try to create Excel file only in browser environment
+      // Try to create Excel file
       try {
-        // Dynamic import of xlsx to avoid build issues
         const XLSX = await import("xlsx")
 
         // Create comprehensive Excel file with all donation data
@@ -211,7 +197,7 @@ export default function DonatePage() {
 
         XLSX.writeFile(wb, `donations_${new Date().toISOString().split("T")[0]}.xlsx`)
       } catch (excelError) {
-        console.log("Excel export not available, data saved to localStorage")
+        console.log("Excel export not available")
       }
 
       // Update recent donations for admin dashboard
@@ -225,42 +211,22 @@ export default function DonatePage() {
       localStorage.setItem("recentDonations", JSON.stringify(recentDonations))
 
       // Trigger real-time update for admin dashboard
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("adminDataUpdate", {
-            detail: { section: "donations", data: recentDonations },
-          }),
-        )
-      }
+      window.dispatchEvent(
+        new CustomEvent("adminDataUpdate", {
+          detail: { section: "donations", data: recentDonations },
+        }),
+      )
 
       return true
     } catch (error) {
       console.error("Error saving donation:", error)
-      // Fallback: save basic data to localStorage
-      if (typeof window !== "undefined") {
-        try {
-          const existingDonations = JSON.parse(localStorage.getItem("donations") || "[]")
-          const newDonation = {
-            id: Date.now(),
-            timestamp: new Date().toISOString(),
-            donorName: donationData.anonymous ? "Anonymous" : donationData.name,
-            email: donationData.email,
-            amount: donationData.amount,
-            currency: donationData.currency,
-            project: donationData.project,
-            status: "Completed",
-          }
-          existingDonations.unshift(newDonation)
-          localStorage.setItem("donations", JSON.stringify(existingDonations))
-        } catch (storageError) {
-          console.error("Failed to save to localStorage:", storageError)
-        }
-      }
       return true // Don't fail the donation process
     }
   }
 
   const handleDonate = async () => {
+    if (!isClient) return
+
     const amount = selectedAmount || Number.parseFloat(customAmount)
 
     // Comprehensive validation
@@ -290,8 +256,8 @@ export default function DonatePage() {
         ...donorInfo,
       }
 
-      // Save donation to Excel with comprehensive tracking
-      await saveDonationToExcel(donationData)
+      // Save donation data
+      await saveDonationData(donationData)
 
       // Simulate payment processing
       await new Promise((resolve) => setTimeout(resolve, 2000))
@@ -330,6 +296,18 @@ export default function DonatePage() {
 
     const converted = amount * exchangeRates[selectedCurrency.code]
     return Math.round(converted)
+  }
+
+  // Don't render until client-side
+  if (!isClient) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-600 mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading donation form...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
