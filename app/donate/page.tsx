@@ -1,605 +1,293 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Heart, TreePine, Users, Globe, CreditCard, Shield } from "lucide-react"
+import { Heart, Copy, Check, Smartphone, CreditCard, Building2, Hash, MapPin } from "lucide-react"
 import { toast } from "sonner"
-
-const donationAmounts = [25, 50, 100, 250, 500, 1000]
-
-const currencies = [
-  { code: "INR", symbol: "₹", name: "Indian Rupee" },
-  { code: "USD", symbol: "$", name: "US Dollar" },
-  { code: "EUR", symbol: "€", name: "Euro" },
-  { code: "GBP", symbol: "£", name: "British Pound" },
-  { code: "CAD", symbol: "C$", name: "Canadian Dollar" },
-  { code: "AUD", symbol: "A$", name: "Australian Dollar" },
-  { code: "JPY", symbol: "¥", name: "Japanese Yen" },
-  { code: "BRL", symbol: "R$", name: "Brazilian Real" },
-]
-
-const projects = [
-  {
-    id: "general",
-    name: "General Fund",
-    description: "Support all our environmental initiatives",
-    icon: Globe,
-    color: "text-green-600",
-  },
-  {
-    id: "trees",
-    name: "Tree Planting",
-    description: "Direct funding for tree plantation programs",
-    icon: TreePine,
-    color: "text-green-700",
-  },
-  {
-    id: "community",
-    name: "Community Events",
-    description: "Organize environmental awareness events",
-    icon: Users,
-    color: "text-blue-600",
-  },
-]
-
-interface Donation {
-  id: string
-  donationDate: string
-  donorName: string
-  email: string
-  phone: string
-  address: string
-  amount: number
-  currency: string
-  project: string
-  donationType: string
-  status: string
-  paymentMethod: string
-  transactionId: string
-  isAnonymous: boolean
-  treesEquivalent: number
-  co2Offset: number
-  communitiesHelped: number
-}
+import Image from "next/image"
 
 export default function DonatePage() {
-  const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
-  const [customAmount, setCustomAmount] = useState("")
-  const [selectedCurrency, setSelectedCurrency] = useState(currencies[0])
-  const [selectedProject, setSelectedProject] = useState("general")
-  const [donationType, setDonationType] = useState<"one-time" | "monthly">("one-time")
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [isClient, setIsClient] = useState(false)
-  const [donorInfo, setDonorInfo] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    address: "",
-    anonymous: false,
-  })
+  const [copiedField, setCopiedField] = useState<string | null>(null)
 
-  // Ensure we're on the client side
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
-
-  const getCurrentGoal = () => {
-    const raised = 47850
-    const goal = 100000
-    const percentage = (raised / goal) * 100
-    return { raised, goal, percentage }
+  const bankDetails = {
+    accountName: "Moto Tourers And Biking Community Federation",
+    bankName: "South Indian Bank",
+    accountNumber: "0655073000000393",
+    ifscCode: "SIBL0000655",
+    upiId: "qr.federation@sib",
   }
 
-  const goal = getCurrentGoal()
-
-  const saveDonationData = async (donationData: any) => {
-    if (!isClient) return true
-
+  const copyToClipboard = async (text: string, field: string) => {
     try {
-      // Load existing donations from localStorage
-      const existingDonations = JSON.parse(localStorage.getItem("donations") || "[]")
-
-      // Create comprehensive donation record
-      const newDonation = {
-        id: Date.now(),
-        timestamp: new Date().toISOString(),
-        donationDate: new Date().toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }),
-        donorName: donationData.anonymous ? "Anonymous" : donationData.name,
-        email: donationData.email,
-        phone: donationData.phone,
-        address: donationData.address,
-        amount: donationData.amount,
-        currency: donationData.currency,
-        project: donationData.project,
-        donationType: donationData.type,
-        status: "Completed",
-        paymentMethod: "Razorpay",
-        transactionId: `TXN_${Date.now()}`,
-        isAnonymous: donationData.anonymous,
-        treesEquivalent: Math.floor(donationData.amount / 5),
-        co2Offset: Math.floor(donationData.amount * 0.5),
-        communitiesHelped: Math.floor(donationData.amount / 25),
-      }
-
-      // Add to existing donations (newest first)
-      existingDonations.unshift(newDonation)
-
-      // Keep only last 1000 donations to prevent excessive storage
-      if (existingDonations.length > 1000) {
-        existingDonations.splice(1000)
-      }
-
-      // Save to localStorage for persistence
-      localStorage.setItem("donations", JSON.stringify(existingDonations))
-
-      // Try to create Excel file
-      try {
-        const XLSX = await import("xlsx")
-
-        // Create comprehensive Excel file with all donation data
-        const excelData = (existingDonations as Donation[]).map((donation: Donation) => ({
-          "Donation ID": donation.id,
-          Date: donation.donationDate,
-          "Donor Name": donation.donorName,
-          Email: donation.email,
-          Phone: donation.phone,
-          Address: donation.address,
-          Amount: donation.amount,
-          Currency: donation.currency,
-          Project: donation.project,
-          Type: donation.donationType,
-          Status: donation.status,
-          "Payment Method": donation.paymentMethod,
-          "Transaction ID": donation.transactionId,
-          Anonymous: donation.isAnonymous ? "Yes" : "No",
-          "Trees Equivalent": donation.treesEquivalent,
-          "CO2 Offset (kg/year)": donation.co2Offset,
-          "Communities Helped": donation.communitiesHelped,
-        }))
-
-        // Generate and download Excel file
-        const ws = XLSX.utils.json_to_sheet(excelData)
-        const wb = XLSX.utils.book_new()
-        XLSX.utils.book_append_sheet(wb, ws, "Donations")
-
-        // Auto-fit column widths for better readability
-        const colWidths = [
-          { wch: 15 }, // Donation ID
-          { wch: 12 }, // Date
-          { wch: 20 }, // Donor Name
-          { wch: 30 }, // Email
-          { wch: 15 }, // Phone
-          { wch: 30 }, // Address
-          { wch: 10 }, // Amount
-          { wch: 8 }, // Currency
-          { wch: 15 }, // Project
-          { wch: 10 }, // Type
-          { wch: 10 }, // Status
-          { wch: 15 }, // Payment Method
-          { wch: 20 }, // Transaction ID
-          { wch: 10 }, // Anonymous
-          { wch: 12 }, // Trees Equivalent
-          { wch: 15 }, // CO2 Offset
-          { wch: 15 }, // Communities Helped
-        ]
-        ws["!cols"] = colWidths
-
-        XLSX.writeFile(wb, `donations_${new Date().toISOString().split("T")[0]}.xlsx`)
-      } catch (excelError) {
-        console.log("Excel export not available")
-      }
-
-      // Update recent donations for admin dashboard
-      const recentDonations = existingDonations.slice(0, 5).map((d: Donation) => ({
-        id: d.id,
-        name: d.donorName,
-        amount: d.amount,
-        currency: d.currency,
-        date: d.donationDate,
-      }))
-      localStorage.setItem("recentDonations", JSON.stringify(recentDonations))
-
-      // Trigger real-time update for admin dashboard
-      window.dispatchEvent(
-        new CustomEvent("adminDataUpdate", {
-          detail: { section: "donations", data: recentDonations },
-        }),
-      )
-
-      return true
+      await navigator.clipboard.writeText(text)
+      setCopiedField(field)
+      toast.success(`${field} copied to clipboard!`)
+      setTimeout(() => setCopiedField(null), 2000)
     } catch (error) {
-      console.error("Error saving donation:", error)
-      return true // Don't fail the donation process
+      toast.error("Failed to copy to clipboard")
     }
-  }
-
-  const handleDonate = async () => {
-    if (!isClient) return
-
-    const amount = selectedAmount || Number.parseFloat(customAmount)
-
-    // Comprehensive validation
-    if (!amount || amount <= 0) {
-      toast.error("Please enter a valid donation amount")
-      return
-    }
-
-    if (!donorInfo.name.trim() || !donorInfo.email.trim()) {
-      toast.error("Please provide your name and email address")
-      return
-    }
-
-    if (!/\S+@\S+\.\S+/.test(donorInfo.email)) {
-      toast.error("Please enter a valid email address")
-      return
-    }
-
-    setIsProcessing(true)
-
-    try {
-      const donationData = {
-        amount,
-        currency: selectedCurrency.code,
-        project: selectedProject,
-        type: donationType,
-        ...donorInfo,
-      }
-
-      // Save donation data
-      await saveDonationData(donationData)
-
-      // Simulate payment processing
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-
-      toast.success(`Thank you for your ${selectedCurrency.symbol}${amount} donation!`)
-
-      // Reset form for potential new donation
-      setSelectedAmount(null)
-      setCustomAmount("")
-      setDonorInfo({
-        name: "",
-        email: "",
-        phone: "",
-        address: "",
-        anonymous: false,
-      })
-    } catch (error) {
-      toast.error("Payment failed. Please try again.")
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const getConvertedAmount = (amount: number) => {
-    // In a real app, this would use a currency conversion API
-    const exchangeRates: { [key: string]: number } = {
-      INR: 83,
-      USD: 1,
-      EUR: 0.85,
-      GBP: 0.73,
-      CAD: 1.25,
-      AUD: 1.35,
-      JPY: 110,
-      BRL: 5.2,
-    }
-
-    const converted = amount * exchangeRates[selectedCurrency.code]
-    return Math.round(converted)
-  }
-
-  // Don't render until client-side
-  if (!isClient) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-600 mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading donation form...</p>
-        </div>
-      </div>
-    )
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-foreground mb-4">Support Our Mission</h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Help us plant more trees, organize environmental events, and build a sustainable future for our planet.
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-green-500 to-blue-500 rounded-full mb-4">
+            <Heart className="h-8 w-8 text-white" />
+          </div>
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-green-600 via-blue-600 to-purple-600 bg-clip-text text-transparent mb-3">
+            Support Our Mission
+          </h1>
+          <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed px-4">
+            Help us build a stronger biking community, organize events, and promote safe riding practices across India.
           </p>
         </div>
 
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Donation Form */}
-          <div className="lg:col-span-2">
-            <Card className="border-0 shadow-xl">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Heart className="h-5 w-5 text-red-500" />
-                  <span>Make a Donation</span>
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
+            {/* QR Code Section */}
+            <Card className="border-0 shadow-2xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm h-fit">
+              <CardHeader className="text-center pb-4">
+                <CardTitle className="flex items-center justify-center space-x-2 text-xl md:text-2xl">
+                  <Smartphone className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
+                  <span>Scan & Pay</span>
                 </CardTitle>
+                <p className="text-sm md:text-base text-muted-foreground">
+                  Scan the QR code with any UPI app to donate instantly
+                </p>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Donor Information */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-foreground">Donor Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="donorName">Full Name *</Label>
-                      <Input
-                        id="donorName"
-                        value={donorInfo.name}
-                        onChange={(e) => setDonorInfo({ ...donorInfo, name: e.target.value })}
-                        placeholder="Enter your full name"
-                        className="bg-background"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="donorEmail">Email Address *</Label>
-                      <Input
-                        id="donorEmail"
-                        type="email"
-                        value={donorInfo.email}
-                        onChange={(e) => setDonorInfo({ ...donorInfo, email: e.target.value })}
-                        placeholder="Enter your email"
-                        className="bg-background"
+              <CardContent className="flex flex-col items-center space-y-4 md:space-y-6">
+                {/* QR Code Container - Reduced size and padding */}
+                <div className="relative">
+                  <div className="w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 bg-white rounded-xl shadow-lg border-2 border-gray-100 p-2 flex items-center justify-center overflow-hidden">
+                    <div className="w-full h-full relative">
+                      <Image
+                        src="/QR.jpg"
+                        alt="UPI Payment QR Code"
+                        fill
+                        className="object-cover rounded-lg"
+                        sizes="(max-width: 640px) 192px, (max-width: 768px) 224px, 256px"
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="donorPhone">Phone Number</Label>
-                      <Input
-                        id="donorPhone"
-                        value={donorInfo.phone}
-                        onChange={(e) => setDonorInfo({ ...donorInfo, phone: e.target.value })}
-                        placeholder="Enter your phone number"
-                        className="bg-background"
-                      />
-                    </div>
-                    <div className="flex items-center space-x-2 pt-6">
-                      <input
-                        type="checkbox"
-                        id="anonymous"
-                        checked={donorInfo.anonymous}
-                        onChange={(e) => setDonorInfo({ ...donorInfo, anonymous: e.target.checked })}
-                      />
-                      <Label htmlFor="anonymous">Make this donation anonymous</Label>
-                    </div>
+                  <div className="absolute -top-1 -right-1 bg-green-500 text-white p-1.5 rounded-full shadow-lg">
+                    <Smartphone className="h-3 w-3 md:h-4 md:w-4" />
                   </div>
                 </div>
 
-                {/* Currency Selection */}
-                <div className="space-y-2">
-                  <Label>Currency</Label>
-                  <Select
-                    value={selectedCurrency.code}
-                    onValueChange={(value) => {
-                      const currency = currencies.find((c) => c.code === value)
-                      if (currency) setSelectedCurrency(currency)
-                    }}
-                  >
-                    <SelectTrigger className="bg-background">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {currencies.map((currency) => (
-                        <SelectItem key={currency.code} value={currency.code}>
-                          {currency.symbol} {currency.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Donation Type */}
-                <div className="space-y-2">
-                  <Label>Donation Type</Label>
-                  <RadioGroup
-                    value={donationType}
-                    onValueChange={(value) => setDonationType(value as "one-time" | "monthly")}
-                    className="flex space-x-6"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="one-time" id="one-time" />
-                      <Label htmlFor="one-time">One-time</Label>
+                {/* UPI ID */}
+                <div className="w-full">
+                  <div className="flex items-center justify-between p-3 md:p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-700 dark:to-gray-600 rounded-xl border">
+                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Hash className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs md:text-sm font-medium text-muted-foreground">UPI ID</p>
+                        <p className="font-mono text-sm md:text-lg font-semibold truncate">{bankDetails.upiId}</p>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="monthly" id="monthly" />
-                      <Label htmlFor="monthly">Monthly</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-
-                {/* Amount Selection */}
-                <div className="space-y-4">
-                  <Label>Donation Amount</Label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {donationAmounts.map((amount) => (
-                      <Button
-                        key={amount}
-                        variant={selectedAmount === getConvertedAmount(amount) ? "default" : "outline"}
-                        onClick={() => {
-                          setSelectedAmount(getConvertedAmount(amount))
-                          setCustomAmount("")
-                        }}
-                        className="h-12"
-                      >
-                        {selectedCurrency.symbol}
-                        {getConvertedAmount(amount)}
-                      </Button>
-                    ))}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="custom-amount">Custom Amount</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
-                        {selectedCurrency.symbol}
-                      </span>
-                      <Input
-                        id="custom-amount"
-                        type="number"
-                        placeholder="Enter amount"
-                        value={customAmount}
-                        onChange={(e) => {
-                          setCustomAmount(e.target.value)
-                          setSelectedAmount(null)
-                        }}
-                        className="pl-8 bg-background"
-                      />
-                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyToClipboard(bankDetails.upiId, "UPI ID")}
+                      className="hover:bg-white/50 flex-shrink-0 ml-2"
+                    >
+                      {copiedField === "UPI ID" ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
 
-                {/* Project Selection */}
-                <div className="space-y-4">
-                  <Label>Choose Project</Label>
-                  <RadioGroup value={selectedProject} onValueChange={setSelectedProject} className="space-y-3">
-                    {projects.map((project) => {
-                      const Icon = project.icon
-                      return (
-                        <div key={project.id} className="flex items-center space-x-3">
-                          <RadioGroupItem value={project.id} id={project.id} />
-                          <Label htmlFor={project.id} className="flex items-center space-x-3 cursor-pointer">
-                            <Icon className={`h-5 w-5 ${project.color}`} />
-                            <div>
-                              <div className="font-medium">{project.name}</div>
-                              <div className="text-sm text-muted-foreground">{project.description}</div>
-                            </div>
-                          </Label>
-                        </div>
-                      )
-                    })}
-                  </RadioGroup>
+                <Badge variant="secondary" className="text-xs md:text-sm px-3 md:px-4 py-1 md:py-2">
+                  Instant • Secure • No Transaction Fee
+                </Badge>
+              </CardContent>
+            </Card>
+
+            {/* Bank Details Section */}
+            <Card className="border-0 shadow-2xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm h-fit">
+              <CardHeader className="text-center pb-4">
+                <CardTitle className="flex items-center justify-center space-x-2 text-xl md:text-2xl">
+                  <Building2 className="h-5 w-5 md:h-6 md:w-6 text-green-600" />
+                  <span>Bank Transfer</span>
+                </CardTitle>
+                <p className="text-sm md:text-base text-muted-foreground">
+                  Transfer directly to our bank account for larger donations
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3 md:space-y-4">
+                {/* Account Name */}
+                <div className="p-3 md:p-4 bg-gradient-to-r from-green-50 to-blue-50 dark:from-gray-700 dark:to-gray-600 rounded-xl border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center flex-shrink-0">
+                        <MapPin className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs md:text-sm font-medium text-muted-foreground">Account Name</p>
+                        <p className="font-semibold text-sm md:text-base break-words leading-tight">
+                          {bankDetails.accountName}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyToClipboard(bankDetails.accountName, "Account Name")}
+                      className="hover:bg-white/50 flex-shrink-0 ml-2"
+                    >
+                      {copiedField === "Account Name" ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
-                {/* Donation Button */}
-                <Button
-                  onClick={handleDonate}
-                  disabled={isProcessing || (!selectedAmount && !customAmount) || !donorInfo.name || !donorInfo.email}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isProcessing ? (
-                    "Processing..."
-                  ) : (
-                    <>
-                      <CreditCard className="h-5 w-5 mr-2" />
-                      Donate {selectedCurrency.symbol}
-                      {selectedAmount || customAmount}
-                      {donationType === "monthly" && "/month"}
-                    </>
-                  )}
-                </Button>
+                {/* Bank Name */}
+                <div className="p-3 md:p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-700 dark:to-gray-600 rounded-xl border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Building2 className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs md:text-sm font-medium text-muted-foreground">Bank Name</p>
+                        <p className="font-semibold text-sm md:text-base">{bankDetails.bankName}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyToClipboard(bankDetails.bankName, "Bank Name")}
+                      className="hover:bg-white/50 flex-shrink-0 ml-2"
+                    >
+                      {copiedField === "Bank Name" ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
 
-                {/* Security Notice */}
-                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                  <Shield className="h-4 w-4" />
-                  <span>Secured by Razorpay - Your donation is safe and encrypted</span>
+                {/* Account Number */}
+                <div className="p-3 md:p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-gray-700 dark:to-gray-600 rounded-xl border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Hash className="h-4 w-4 md:h-5 md:w-5 text-purple-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs md:text-sm font-medium text-muted-foreground">Account Number</p>
+                        <p className="font-mono font-semibold text-sm md:text-lg">{bankDetails.accountNumber}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyToClipboard(bankDetails.accountNumber, "Account Number")}
+                      className="hover:bg-white/50 flex-shrink-0 ml-2"
+                    >
+                      {copiedField === "Account Number" ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* IFSC Code */}
+                <div className="p-3 md:p-4 bg-gradient-to-r from-orange-50 to-red-50 dark:from-gray-700 dark:to-gray-600 rounded-xl border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center flex-shrink-0">
+                        <CreditCard className="h-4 w-4 md:h-5 md:w-5 text-orange-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs md:text-sm font-medium text-muted-foreground">IFSC Code</p>
+                        <p className="font-mono font-semibold text-sm md:text-lg">{bankDetails.ifscCode}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyToClipboard(bankDetails.ifscCode, "IFSC Code")}
+                      className="hover:bg-white/50 flex-shrink-0 ml-2"
+                    >
+                      {copiedField === "IFSC Code" ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Current Goal */}
-            <Card className="border-0 shadow-xl">
-              <CardHeader>
-                <CardTitle>Current Goal</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">${goal.raised.toLocaleString()}</div>
-                    <div className="text-sm text-muted-foreground">raised of ${goal.goal.toLocaleString()} goal</div>
-                  </div>
-                  <Progress value={goal.percentage} className="h-3" />
-                  <div className="text-center text-sm text-muted-foreground">
-                    {Math.round(goal.percentage)}% complete
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Impact Section */}
+          <Card className="mt-6 lg:mt-8 border-0 shadow-2xl bg-gradient-to-r from-green-500/10 via-blue-500/10 to-purple-500/10 backdrop-blur-sm">
+            <CardContent className="p-6 md:p-8">
+              <div className="text-center mb-6 md:mb-8">
+                <h2 className="text-xl md:text-2xl font-bold mb-3 md:mb-4">Your Contribution Makes a Difference</h2>
+                <p className="text-sm md:text-base text-muted-foreground max-w-2xl mx-auto">
+                  Every donation helps us organize better events, improve safety measures, and build a stronger biking
+                  community across India.
+                </p>
+              </div>
 
-            {/* Impact Calculator */}
-            <Card className="border-0 shadow-xl">
-              <CardHeader>
-                <CardTitle>Your Impact</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <div className="text-lg font-medium">
-                      {selectedCurrency.symbol}
-                      {selectedAmount || customAmount || 0}
-                    </div>
-                    <div className="text-sm text-muted-foreground">donation can provide</div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                <div className="text-center p-4 md:p-6 bg-white/50 dark:bg-gray-800/50 rounded-xl">
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4">
+                    <Heart className="h-5 w-5 md:h-6 md:w-6 text-green-600" />
                   </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Trees planted</span>
-                      <Badge variant="outline">
-                        {Math.floor((selectedAmount || Number.parseFloat(customAmount) || 0) / 5)} trees
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">CO2 offset</span>
-                      <Badge variant="outline">
-                        {Math.floor((selectedAmount || Number.parseFloat(customAmount) || 0) * 0.5)} kg/year
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Communities helped</span>
-                      <Badge variant="outline">
-                        {Math.floor((selectedAmount || Number.parseFloat(customAmount) || 0) / 25)} communities
-                      </Badge>
-                    </div>
-                  </div>
+                  <h3 className="font-semibold mb-2 text-sm md:text-base">Community Events</h3>
+                  <p className="text-xs md:text-sm text-muted-foreground">
+                    Organize rides, meetups, and safety workshops for bikers
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
 
-            {/* Recent Donors */}
-            <Card className="border-0 shadow-xl">
-              <CardHeader>
-                <CardTitle>Recent Supporters</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Anonymous</span>
-                    <span className="text-sm font-medium">₹8,300</span>
+                <div className="text-center p-4 md:p-6 bg-white/50 dark:bg-gray-800/50 rounded-xl">
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4">
+                    <Building2 className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Maria S.</span>
-                    <span className="text-sm font-medium">₹4,150</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">John D.</span>
-                    <span className="text-sm font-medium">₹2,075</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Riders Club</span>
-                    <span className="text-sm font-medium">₹20,750</span>
-                  </div>
+                  <h3 className="font-semibold mb-2 text-sm md:text-base">Safety Initiatives</h3>
+                  <p className="text-xs md:text-sm text-muted-foreground">
+                    Promote road safety and responsible riding practices
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
+
+                <div className="text-center p-4 md:p-6 bg-white/50 dark:bg-gray-800/50 rounded-xl">
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4">
+                    <Smartphone className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />
+                  </div>
+                  <h3 className="font-semibold mb-2 text-sm md:text-base">Platform Development</h3>
+                  <p className="text-xs md:text-sm text-muted-foreground">
+                    Maintain and improve our community platform and services
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Thank You Message */}
+          <div className="text-center mt-6 lg:mt-8 p-4 md:p-6 bg-gradient-to-r from-green-500/5 to-blue-500/5 rounded-2xl border border-green-200/20">
+            <h3 className="text-lg md:text-xl font-semibold mb-2">Thank You for Your Support! 🙏</h3>
+            <p className="text-sm md:text-base text-muted-foreground">
+              Your contribution helps us build a safer and stronger biking community. Together, we ride towards a better
+              future.
+            </p>
           </div>
         </div>
       </div>
