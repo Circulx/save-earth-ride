@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Users, User, Instagram, Facebook, Twitter, Bike, CheckCircle } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Users, User, Instagram, Facebook, Twitter, Bike, CheckCircle, Car } from "lucide-react"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
 
@@ -30,10 +31,14 @@ const clubSchema = z.object({
   country: z.string().min(1, "Country is required"),
   city: z.string().min(1, "City is required"),
   description: z.string().min(10, "Description must be at least 10 characters"),
+  vehicleRegistrationNumber: z.string().min(1, "Vehicle registration number is required"),
   website: z.string().optional(),
   instagram: z.string().optional(),
   facebook: z.string().optional(),
   twitter: z.string().optional(),
+  acceptTerms: z.boolean().refine((val) => val === true, {
+    message: "You must accept the terms and conditions",
+  }),
 })
 
 const individualSchema = z.object({
@@ -46,9 +51,13 @@ const individualSchema = z.object({
   city: z.string().min(1, "City is required"),
   bio: z.string().min(10, "Bio must be at least 10 characters"),
   ridingExperience: z.string().min(1, "Riding experience is required"),
+  vehicleRegistrationNumber: z.string().min(1, "Vehicle registration number is required"),
   instagram: z.string().optional(),
   facebook: z.string().optional(),
   twitter: z.string().optional(),
+  acceptTerms: z.boolean().refine((val) => val === true, {
+    message: "You must accept the terms and conditions",
+  }),
 })
 
 type ClubFormData = z.infer<typeof clubSchema>
@@ -80,6 +89,7 @@ interface ExcelRegistrationData {
   Status: string
   Country: string
   City: string
+  "Vehicle Registration": string
   "Additional Info": string
   Experience: string
   Website: string
@@ -155,9 +165,12 @@ export default function RegisterPage() {
     formState: { errors },
     setValue,
     reset,
+    watch,
   } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
+
+  const acceptTerms = watch("acceptTerms")
 
   /**
    * Excel Storage Function for Registrations
@@ -222,6 +235,7 @@ export default function RegisterPage() {
         Status: reg.status,
         Country: reg.fullData?.country || "",
         City: reg.fullData?.city || "",
+        "Vehicle Registration": reg.fullData?.vehicleRegistrationNumber || "",
         "Additional Info":
           reg.type === "Club"
             ? (reg.fullData as ClubFormData)?.description || ""
@@ -254,6 +268,7 @@ export default function RegisterPage() {
         { wch: 10 }, // Status
         { wch: 15 }, // Country
         { wch: 15 }, // City
+        { wch: 20 }, // Vehicle Registration
         { wch: 50 }, // Additional Info
         { wch: 15 }, // Experience
         { wch: 25 }, // Website
@@ -566,6 +581,23 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
+                {/* Vehicle Registration Number */}
+                <div className="space-y-2">
+                  <Label htmlFor="vehicleRegistrationNumber" className="flex items-center space-x-2">
+                    <Car className="h-4 w-4" />
+                    <span>Vehicle Registration Number *</span>
+                  </Label>
+                  <Input
+                    id="vehicleRegistrationNumber"
+                    {...register("vehicleRegistrationNumber")}
+                    placeholder="Enter your vehicle registration number"
+                    className="bg-background"
+                  />
+                  {errors.vehicleRegistrationNumber && (
+                    <p className="text-sm text-red-500">{errors.vehicleRegistrationNumber.message}</p>
+                  )}
+                </div>
+
                 {/* Social Media */}
                 <div className="space-y-4">
                   <Label className="text-base font-medium">Social Media (Optional)</Label>
@@ -604,7 +636,55 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+                {/* Terms and Conditions */}
+                <div className="space-y-4">
+                  <Label className="text-base font-medium">Terms and Conditions</Label>
+                  <div className="bg-muted/50 p-4 rounded-lg border max-h-64 overflow-y-auto">
+                    <div className="text-sm text-muted-foreground space-y-3 leading-relaxed">
+                      <p>
+                        <strong>1)</strong> In recognition of the inherent risks of the activity in which I will engage,
+                        I confirm that I am physically and mentally capable of participating in the activity. My
+                        participation is voluntary and I will assume financial responsibility for personal injury,
+                        accidents and damage to or loss of personal property as the result of any incident or accident
+                        that may occur.
+                      </p>
+                      <p>
+                        <strong>2)</strong> If the behaviour of any Rider/Pillion is likely to cause distress or harm to
+                        themselves, our member of staff or other team members, our local Guide/Staff reserve the right
+                        to terminate their trip at any time and they will have to make their own arrangements; we will
+                        not be liable for any expenses incurred as a result. We will not entertain any claims arising
+                        due to such action.
+                      </p>
+                      <p>
+                        <strong>3)</strong> In case of any injuries/illness during a trip/activity, BCI as a community
+                        or our members, the admin will not be responsible. We provide adequate human support on the ride
+                        to ensure the basic safety of the rider. The rider has to bear all the expenses which may arise
+                        in case for a medical emergency condition.
+                      </p>
+                      <p>
+                        <strong>4)</strong> We do not promote any stunt and drink and drive, so please refrain yourself
+                        from such activities.
+                      </p>
+                      <p>
+                        <strong>5)</strong> Following Covid19 guidelines given by concerned authorities.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="acceptTerms"
+                      checked={acceptTerms || false}
+                      onCheckedChange={(checked) => setValue("acceptTerms", checked as boolean)}
+                    />
+                    <Label htmlFor="acceptTerms" className="text-sm font-medium cursor-pointer">
+                      I Accept the terms and conditions *
+                    </Label>
+                  </div>
+                  {errors.acceptTerms && <p className="text-sm text-red-500">{errors.acceptTerms.message}</p>}
+                </div>
+
+                <Button type="submit" className="w-full" size="lg" disabled={isSubmitting || !acceptTerms}>
                   {isSubmitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
