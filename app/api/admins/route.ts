@@ -65,7 +65,7 @@ export async function GET() {
   return NextResponse.json({ data })
 }
 
-export const dynamic = "force-dynamic"
+export const dynamic = "auto"
 
 export async function POST(req: NextRequest) {
   try {

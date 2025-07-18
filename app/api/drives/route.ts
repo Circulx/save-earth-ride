@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export const dynamic = 'dynamic';
+export const dynamic = 'auto';
 /**
  * POST - Create a new drive
  */

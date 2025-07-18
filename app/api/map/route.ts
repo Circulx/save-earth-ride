@@ -10,7 +10,7 @@ export async function GET() {
     return NextResponse.json({ success: false, error: 'Failed to fetch map data' }, { status: 500 });
   }
 }
-export const dynamic = "dynamic";
+export const dynamic = "auto";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

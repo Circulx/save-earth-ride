@@ -32,7 +32,7 @@ export async function GET() {
     );
   }
 }
-export const dynamic = "dynamic";
+export const dynamic = "auto";
 // POST - Add new timeline item
 export async function POST(request: NextRequest) {
   try {

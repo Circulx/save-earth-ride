@@ -22,7 +22,7 @@ export async function GET() {
     );
   }
 }
-export const dynamic = 'dynamic'
+export const dynamic = 'auto'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
