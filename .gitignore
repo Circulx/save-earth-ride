@@ -36,6 +36,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Google credentials (never commit these)
-google-credentials.json
+# Google credentials
 lib/google-credentials.json
+google-credentials.json
+*.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db

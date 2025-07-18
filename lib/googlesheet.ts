@@ -1,5 +1,20 @@
-import { GoogleSpreadsheet } from "google-spreadsheet"
+import { google } from "googleapis"
 import { JWT } from "google-auth-library"
+
+const SPREADSHEET_ID = "1IiriZCjD_FHO2nclc2By2ynEgUzTTaOd_89Uxr2hCoE"
+
+const categories = [
+  "drives",
+  "blog",
+  "gallery",
+  "map",
+  "timeline",
+  "treecounter",
+  "admins",
+  "sponsors",
+  "registrations",
+  "donations",
+]
 
 // Create service account auth from environment variables
 const createServiceAccountAuth = () => {
@@ -20,48 +35,14 @@ const createServiceAccountAuth = () => {
   return new JWT({
     email: credentials.client_email,
     key: credentials.private_key,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.file"],
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   })
 }
 
-export const getGoogleSheet = async (sheetId: string) => {
-  try {
-    const serviceAccountAuth = createServiceAccountAuth()
-    const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth)
-    await doc.loadInfo()
-    return doc
-  } catch (error) {
-    console.error("Error accessing Google Sheet:", error)
-    throw error
-  }
+async function getSheetsClient() {
+  const authClient = createServiceAccountAuth()
+  const sheets = google.sheets({ version: "v4", auth: authClient })
+  return sheets
 }
 
-export const appendToSheet = async (sheetId: string, sheetName: string, values: any[]) => {
-  try {
-    const doc = await getGoogleSheet(sheetId)
-    const sheet = doc.sheetsByTitle[sheetName]
-    if (!sheet) {
-      throw new Error(`Sheet "${sheetName}" not found`)
-    }
-    await sheet.addRow(values)
-    return { success: true }
-  } catch (error) {
-    console.error("Error appending to sheet:", error)
-    throw error
-  }
-}
-
-export const readFromSheet = async (sheetId: string, sheetName: string) => {
-  try {
-    const doc = await getGoogleSheet(sheetId)
-    const sheet = doc.sheetsByTitle[sheetName]
-    if (!sheet) {
-      throw new Error(`Sheet "${sheetName}" not found`)
-    }
-    const rows = await sheet.getRows()
-    return rows.map((row: { toObject: () => any }) => row.toObject())
-  } catch (error) {
-    console.error("Error reading from sheet:", error)
-    throw error
-  }
-}
+export { getSheetsClient, SPREADSHEET_ID, categories }
