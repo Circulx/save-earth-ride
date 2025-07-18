@@ -11,12 +11,25 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { 
   Calendar, Plus, Edit, Trash2, Save, X, MapPin, Users, TreePine,
-  ArrowLeft, Bike, Clock
+  ArrowLeft, Bike, Clock, Loader2, RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
-import Image from 'next/image';
+
+interface TimelineItem {
+  id: number;
+  date: string;
+  title: string;
+  location: string;
+  type: string;
+  participants: number;
+  treesPlanted: number;
+  description: string;
+  image: string;
+  side: 'left' | 'right';
+  contactEmail?: string;
+}
 
 /**
  * Form Validation Schema
@@ -46,7 +59,7 @@ const validateTimelineData = (data: any) => {
   }
   if(data.description){
     if (data.description.length < 10){
-      errors.push('Description must be at Least 10 characters long');
+      errors.push('Description must be at least 10 characters long');
     }
   }
   if(data.side && !['left', 'right'].includes(data.side)){
@@ -55,87 +68,13 @@ const validateTimelineData = (data: any) => {
   
   return errors;
 };
-// Initial timeline data
-const initialTimelineData = [
-  {
-    id: 1,
-    date: '2024-12-15',
-    title: 'Amazon Conservation Mega Ride',
-    location: 'Manaus, Brazil',
-    type: 'Conservation',
-    participants: 500,
-    treesPlanted: 2500,
-    description: 'Our largest conservation ride yet, bringing together 500 riders from across South America to raise awareness about Amazon deforestation.',
-    image: 'https://images.pexels.com/photos/1005648/pexels-photo-1005648.jpeg?auto=compress&cs=tinysrgb&w=500',
-    side: 'left',
-  },
-  {
-    id: 2,
-    date: '2024-11-20',
-    title: 'Himalayan Tree Drive',
-    location: 'Kathmandu, Nepal',
-    type: 'Tree Planting',
-    participants: 200,
-    treesPlanted: 1000,
-    description: 'Epic high-altitude ride through the Himalayas, planting native trees to combat deforestation in the region.',
-    image: 'https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=500',
-    side: 'right',
-  },
-  {
-    id: 3,
-    date: '2024-10-05',
-    title: 'European Unity Ride',
-    location: 'Multiple Cities, Europe',
-    type: 'Awareness',
-    participants: 1200,
-    treesPlanted: 3000,
-    description: 'Cross-border ride connecting 12 European countries, promoting unity in environmental action.',
-    image: 'https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=500',
-    side: 'left',
-  },
-  {
-    id: 4,
-    date: '2024-08-12',
-    title: 'Pacific Coast Green Ride',
-    location: 'Sydney, Australia',
-    type: 'Beach Cleanup',
-    participants: 350,
-    treesPlanted: 800,
-    description: 'Coastal ride combined with beach cleanup and mangrove planting along the Pacific Coast.',
-    image: 'https://images.pexels.com/photos/1005648/pexels-photo-1005648.jpeg?auto=compress&cs=tinysrgb&w=500',
-    side: 'right',
-  },
-  {
-    id: 5,
-    date: '2024-06-30',
-    title: 'Desert Oasis Project',
-    location: 'Dubai, UAE',
-    type: 'Desert Greening',
-    participants: 150,
-    treesPlanted: 500,
-    description: 'Innovative desert greening project creating sustainable oases in arid landscapes.',
-    image: 'https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=500',
-    side: 'left',
-  },
-  {
-    id: 6,
-    date: '2024-04-22',
-    title: 'Earth Day Global Ride',
-    location: 'Worldwide',
-    type: 'Global Event',
-    participants: 5000,
-    treesPlanted: 10000,
-    description: 'Our biggest event ever! Simultaneous rides in 50 countries celebrating Earth Day.',
-    image: 'https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=500',
-    side: 'right',
-  },
-];
 
 export default function AdminTimelinePage() {
-  const [timelineData, setTimelineData] = useState(initialTimelineData);
-  const [editingItem, setEditingItem] = useState<any>(null);
+  const [timelineData, setTimelineData] = useState<TimelineItem[]>([]);
+  const [editingItem, setEditingItem] = useState<TimelineItem | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
-  // const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     location: '',
@@ -145,58 +84,80 @@ export default function AdminTimelinePage() {
     treesPlanted: '',
     description: '',
     image: '',
-    side: 'left'
+    side: 'left' as 'left' | 'right',
+    contactEmail: ''
   });
 
   const eventTypes = ['Tree Planting', 'Conservation', 'Beach Cleanup', 'Awareness', 'Desert Greening', 'Global Event', 'Water Conservation', 'Urban Planting'];
 
   useEffect(() => {
-    loadDataFromStorage();
+    loadTimelineData();
   }, []);
 
-  const loadDataFromStorage = () => {
-    try{
-      const savedData = localStorage.getItem('timelineData');
-      if (savedData) {
-        const parsedData = JSON.parse(savedData);
-        // Validate data before setting state
-        const validData = parsedData.filter((item: any) =>
-          item.id && item.date && item.title && item.location);
-        setTimelineData(validData);
+  // Load timeline data from Google Sheets via API
+  const loadTimelineData = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/timeline');
+      const result = await response.json();
+      
+      if (result.success) {
+        setTimelineData(result.data);
+      } else {
+        toast.error('Failed to load timeline data');
+        console.error('Error loading timeline data:', result.error);
       }
-    } catch (error) { 
-      console.error('Error loading timeline data from storage : ', error);
-      toast.error('Failed to load timeline data from storage : ');
+    } catch (error) {
+      console.error('Error loading timeline data:', error);
+      toast.error('Failed to load timeline data');
+    } finally {
+      setIsLoading(false);
     }
   };
-  
-  /**
-   * Data Export and Real-time Updates
-   * 
-   * Saves data to localStorage and Excel file, then triggers real-time updates
-   * to the user-facing banner component.
-   */
-  const saveDatatoFile = (data:any[]) => {
-    try{
-      console.log('Saving data to localStorage and Excel:', data); 
-      localStorage.setItem('timelineData', JSON.stringify(data));
-      toast.success('Timeline data saved successfully!');
-      
-      const excelData = data.map(item => ({
-        ...item,
-        participants: Number(item.participants) || 0,
-        treesPlanted: Number(item.treesPlanted) || 0,
-        side : item.side
-      }));
-      const ws = XLSX.utils.json_to_sheet(excelData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Timeline');
-      XLSX.writeFile(wb, `timeline_${new Date().toISOString().split('T')[0]}.xlsx`);
 
-      toast.success('Timeline data exported to Excel! ');
+  // Save timeline data to Google Sheets via API
+  const saveTimelineData = async (data: TimelineItem[]) => {
+    try {
+      setIsSaving(true);
+      const response = await fetch('/api/timeline', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ data }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        toast.success('Timeline data saved successfully!');
+        
+        // Export to Excel
+        const excelData = data.map(item => ({
+          ...item,
+          participants: Number(item.participants) || 0,
+          treesPlanted: Number(item.treesPlanted) || 0,
+        }));
+        const ws = XLSX.utils.json_to_sheet(excelData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Timeline');
+        XLSX.writeFile(wb, `timeline_${new Date().toISOString().split('T')[0]}.xlsx`);
+        
+        // Trigger real-time update
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('adminDataUpdate', { 
+            detail: { section: 'timeline', data } 
+          }));
+        }
+      } else {
+        toast.error('Failed to save timeline data');
+        console.error('Error saving timeline data:', result.error);
+      }
     } catch (error) {
-      console.error('Error saving timeline data to file : ', error);
-      toast.error('Failed to save timeline data to file : ');
+      console.error('Error saving timeline data:', error);
+      toast.error('Failed to save timeline data');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -209,130 +170,135 @@ export default function AdminTimelinePage() {
     toast.success('Timeline data exported to Excel!');
   };
 
-  // Real-time update function
-  const updateTimelineData = (newData: any[]) => {
-    console.log('Updating timeline data:', newData);
-    setTimelineData(newData);
-    saveDatatoFile(newData); 
-
-    // Trigger real-time update
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('adminDataUpdate', { 
-        detail: { section: 'timeline', data: newData } 
-      }));
-    }
-  };
-
-  // const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) =>{
-  //   const file = event.target.files?.[0];
-  //   if (!file) return;
-
-  //   //validate file type and size
-  //   if (!file.type.startsWith('image/')){
-  //     toast.error('Please upload a valid image file');
-  //     return; 
-  //   }
-
-  //   if(file.size > 10* 1024 * 1024){
-  //     toast.error('Image size should be less than 10MB');
-  //     return;
-  //   }
-
-  //   const reader = new FileReader();
-  //   reader.onloadend = () => {
-  //     setFormData({
-  //       ...formData,
-  //       image: reader.result as string });
-  //       if (reader.result){
-  //         setImagePreview(reader.result as string);
-  //         setFormData(prev => ({ ...prev, image: reader.result as string}));
-  //     }
-  //   };
-  //   reader.readAsDataURL(file);
-  // }
-
   // Add new timeline item
-  
-  const handleAdd = () => {
-    console.log('handleAdd triggered');
-
-    const newItem = {
-      id: Date.now(),
-      ...formData,
-      participants: parseInt(formData.participants) || 0,
-      treesPlanted: parseInt(formData.treesPlanted) || 0,
-    };
-
-    if (!formData.title || !formData.location || !formData.date) {
-      toast.error('Please fill in all required fields');
+  const handleAdd = async () => {
+    const errors = validateTimelineData(formData);
+    if (errors.length > 0) {
+      toast.error(errors.join(', '));
       return;
     }
 
-    const updatedData = [...timelineData, newItem];
-    updateTimelineData(updatedData);
-    
-    resetForm();
-    setIsAddingNew(false);
-    toast.success('Timeline item added successfully!');
+    try {
+      setIsSaving(true);
+      const response = await fetch('/api/timeline', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setTimelineData([...timelineData, result.data]);
+        resetForm();
+        setIsAddingNew(false);
+        toast.success('Timeline item added successfully!');
+      } else {
+        toast.error('Failed to add timeline item');
+        console.error('Error adding timeline item:', result.error);
+      }
+    } catch (error) {
+      console.error('Error adding timeline item:', error);
+      toast.error('Failed to add timeline item');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const resetForm = () => {
     setFormData({
       title: '', location: '', date: '', type: '', participants: '', 
-      treesPlanted: '', description: '', image: '', side: 'left'
+      treesPlanted: '', description: '', image: '', side: 'left', contactEmail: ''
     });
-    // setImagePreview(null);
   };
 
   // Edit timeline item
-  const handleEdit = (item: any) => {
+  const handleEdit = (item: TimelineItem) => {
     setEditingItem(item);
     setFormData({
       title: item.title || '',
-      location: item.location || '' ,
+      location: item.location || '',
       date: item.date || '',
       type: item.type || 'Tree Planting',
       participants: item.participants.toString() || '',
       treesPlanted: item.treesPlanted.toString() || '',
       description: item.description || '',
       image: item.image || '',
-      side: item.side || 'left'
+      side: item.side || 'left',
+      contactEmail: item.contactEmail || ''
     });
-    // setImagePreview(item.image || '');
   };
 
   // Update timeline item
-  const handleUpdate = () => {
-    console.log('handleUpdate triggered');
-
-    if (!formData.title || !formData.location || !formData.date) {
-      toast.error('Please fill in all required fields');
+  const handleUpdate = async () => {
+    const errors = validateTimelineData(formData);
+    if (errors.length > 0) {
+      toast.error(errors.join(', '));
       return;
     }
 
-    const updatedData = timelineData.map(item => 
-      item.id === editingItem.id 
-        ? {
-            ...item,
-            ...formData,
-            participants: parseInt(formData.participants) || 0,
-            treesPlanted: parseInt(formData.treesPlanted) || 0,
-          }
-        : item
-    );
+    if (!editingItem) return;
 
-    updateTimelineData(updatedData);
-    setEditingItem(null);
-    resetForm();
-    toast.success('Timeline item updated successfully!');
+    try {
+      setIsSaving(true);
+      const response = await fetch('/api/timeline', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ...formData, id: editingItem.id }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        const updatedData = timelineData.map(item => 
+          item.id === editingItem.id ? result.data : item
+        );
+        setTimelineData(updatedData);
+        setEditingItem(null);
+        resetForm();
+        toast.success('Timeline item updated successfully!');
+      } else {
+        toast.error('Failed to update timeline item');
+        console.error('Error updating timeline item:', result.error);
+      }
+    } catch (error) {
+      console.error('Error updating timeline item:', error);
+      toast.error('Failed to update timeline item');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Delete timeline item
-  const handleDelete = (id: number) => {
-    if (!confirm('Are you sure you want to delete this timeline item? ')) return;
-    const updatedData = timelineData.filter(item => item.id !== id);
-    updateTimelineData(updatedData);
-    toast.success('Timeline item deleted successfully!');
+  const handleDelete = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this timeline item?')) return;
+
+    try {
+      setIsSaving(true);
+      const response = await fetch(`/api/timeline?id=${id}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        const updatedData = timelineData.filter(item => item.id !== id);
+        setTimelineData(updatedData);
+        toast.success('Timeline item deleted successfully!');
+      } else {
+        toast.error('Failed to delete timeline item');
+        console.error('Error deleting timeline item:', result.error);
+      }
+    } catch (error) {
+      console.error('Error deleting timeline item:', error);
+      toast.error('Failed to delete timeline item');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const getTypeColor = (type: string) => {
@@ -347,6 +313,17 @@ export default function AdminTimelinePage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Loading timeline data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
@@ -359,25 +336,27 @@ export default function AdminTimelinePage() {
                 Back to Dashboard
               </Button>
             </Link>
-            <div className="flex items-center space-x-3">
-              {/* <div className="flex items-center space-x-2">
-                <Calendar className="h-8 w-8 text-primary" />
-                <Bike className="h-6 w-6 text-blue-600" />
-              </div> */}
-              <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-                  Timeline Management
-                </h1>
-                <p className="text-gray-600">Manage timeline events and rides</p>
-              </div>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+                Timeline Management
+              </h1>
+              <p className="text-gray-600">Manage timeline events and rides (Google Sheets)</p>
             </div>
           </div>
           <div className="flex items-center space-x-3">
-            <Button onClick={() => saveDatatoFile(timelineData)} variant="outline">
+            <Button 
+              onClick={loadTimelineData} 
+              variant="outline" 
+              disabled={isLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button onClick={exportToExcel} variant="outline">
               <Calendar className="h-4 w-4 mr-2" />
               Export Excel
             </Button>
-            <Button onClick={() => setIsAddingNew(true)}>
+            <Button onClick={() => setIsAddingNew(true)} disabled={isSaving}>
               <Plus className="h-4 w-4 mr-2" />
               Add Event
             </Button>
@@ -584,7 +563,7 @@ export default function AdminTimelinePage() {
                 </div>
                 <div>
                   <Label htmlFor="side">Timeline Side</Label>
-                  <Select onValueChange={(value) => setFormData({...formData, side: value})}>
+                  <Select onValueChange={(value) => setFormData({...formData, side: value as 'left' | 'right'})}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select side" />
                     </SelectTrigger>

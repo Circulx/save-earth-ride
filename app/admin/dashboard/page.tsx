@@ -10,141 +10,243 @@ import {
   TreePine, Users, Calendar, BookOpen, MapPin, Heart, Settings, 
   LogOut, Plus, Edit, Trash2, Upload, Save, Eye, Handshake,
   BarChart3, TrendingUp, Globe, Bike, ExternalLink, Shield,
-  CreditCard, UserPlus, Clock, Flag
+  CreditCard, UserPlus, Clock, Flag, RefreshCw, Loader2, User
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
+interface Registration {
+  id: string;
+  type: 'individual' | 'club';
+  firstName?: string;
+  lastName?: string;
+  clubName?: string;
+  adminName?: string;
+  email: string;
+  phone: string;
+  country: string;
+  city: string;
+  licenceNumber: string;
+  bio?: string;
+  description?: string;
+  ridingExperience?: string;
+  website?: string;
+  instagram?: string;
+  facebook?: string;
+  twitter?: string;
+  acceptTerms: boolean;
+  registrationDate: string;
+}
+
+interface DashboardData {
+  treeCount: {
+    count: number;
+    lastUpdated: string;
+  };
+  recentDonations: Array<{
+    id: string;
+    name: string;
+    amount: number;
+    currency: string;
+    date: string;
+    email?: string;
+    message?: string;
+  }>;
+  recentRegistrations: Registration[];
+  totalRiders: number;
+}
+
 export default function AdminDashboardPage() {
-  const [treeCount, setTreeCount] = useState(25847);
-  const [newTreeCount, setNewTreeCount] = useState(25847);
-  const [recentDonations, setRecentDonations] = useState([
-    { id: 1, name: 'Anonymous', amount: 500, currency: 'USD', date: '2024-12-15' },
-    { id: 2, name: 'John Doe', amount: 250, currency: 'USD', date: '2024-12-14' },
-    { id: 3, name: 'Maria Garcia', amount: 100, currency: 'EUR', date: '2024-12-13' },
-    { id: 4, name: 'Riders Club', amount: 1000, currency: 'USD', date: '2024-12-12' },
-    { id: 5, name: 'Sarah Johnson', amount: 75, currency: 'GBP', date: '2024-12-11' }
-  ]);
-  const [recentRegistrations, setRecentRegistrations] = useState([
-    { id: 1, name: 'Alex Thompson', type: 'Individual', location: 'California, USA', date: '2024-12-15' },
-    { id: 2, name: 'Thunder Riders MC', type: 'Club', location: 'Texas, USA', date: '2024-12-14' },
-    { id: 3, name: 'Emma Wilson', type: 'Individual', location: 'London, UK', date: '2024-12-13' },
-    { id: 4, name: 'Green Wheels Club', type: 'Club', location: 'Berlin, Germany', date: '2024-12-12' },
-    { id: 5, name: 'Carlos Rodriguez', type: 'Individual', location: 'Madrid, Spain', date: '2024-12-11' }
-  ]);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const [newTreeCount, setNewTreeCount] = useState(0);
 
-  // Load data from localStorage on component mount
-  useEffect(() => {
-    loadDataFromStorage();
-    
-    // Listen for real-time updates
-    const handleUpdate = (event: CustomEvent) => {
-      if (event.detail.section === 'treeCount') {
-        setTreeCount(event.detail.data);
-        setNewTreeCount(event.detail.data);
-      } else if (event.detail.section === 'registrations') {
-        setRecentRegistrations(event.detail.data.slice(0, 5));
-      }
-    };
-
-    window.addEventListener('adminDataUpdate', handleUpdate as EventListener);
-    return () => window.removeEventListener('adminDataUpdate', handleUpdate as EventListener);
-  }, []);
-
-  // Load data from localStorage
-  const loadDataFromStorage = () => {
+  // Fetch registrations from your registration API
+  const fetchRegistrations = async (): Promise<Registration[]> => {
     try {
-      const savedTreeCount = localStorage.getItem('treeCount');
-      if (savedTreeCount) {
-        const count = parseInt(savedTreeCount);
-        setTreeCount(count);
-        setNewTreeCount(count);
-      }
+      const response = await fetch('/api/register?action=list');
+      const result = await response.json();
       
-      const savedDonations = localStorage.getItem('recentDonations');
-      if (savedDonations) {
-        setRecentDonations(JSON.parse(savedDonations));
-      }
-      
-      const savedRegistrations = localStorage.getItem('recentRegistrations');
-      if (savedRegistrations) {
-        setRecentRegistrations(JSON.parse(savedRegistrations).slice(0, 5));
+      if (result.success) {
+        return result.data || [];
+      } else {
+        console.error('Failed to fetch registrations:', result.error);
+        return [];
       }
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      console.error('Error fetching registrations:', error);
+      return [];
     }
   };
 
-  // Save data to file and localStorage
-  const saveDataToFile = (data: any, filename: string) => {
+  // Fetch dashboard data from API
+  const fetchDashboardData = async () => {
     try {
-      // Save to localStorage for persistence
-      localStorage.setItem(filename, typeof data === 'object' ? JSON.stringify(data) : data.toString());
+      setLoading(true);
       
-      // Create downloadable file
-      const dataStr = JSON.stringify(data, null, 2);
-      const dataBlob = new Blob([dataStr], { type: 'application/json' });
-      const url = URL.createObjectURL(dataBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${filename}_${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // Fetch registrations from your registration API
+      const registrations = await fetchRegistrations();
       
-      toast.success('Data saved to file!');
-    } catch (error) {
-      console.error('Error saving data:', error);
-      toast.error('Failed to save data');
-    }
-  };
+      // Sort by registration date (most recent first) and take only the last 10
+      const recentRegistrations = registrations
+        .sort((a, b) => new Date(b.registrationDate || '').getTime() - new Date(a.registrationDate || '').getTime())
+        .slice(0, 10);
 
-  // Update tree count
-  const updateTreeCount = () => {
-    setTreeCount(newTreeCount);
-    saveDataToFile(newTreeCount, 'treeCount');
-    
-    // Trigger real-time update
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('adminDataUpdate', { 
-        detail: { section: 'treeCount', data: newTreeCount } 
-      }));
-    }
-    
-    toast.success('Tree count updated successfully!');
-  };
+      // Try to fetch other dashboard data (tree count, donations)
+      let treeCount = { count: 15234, lastUpdated: new Date().toISOString() };
+      let recentDonations: any[] = [];
+      
+      try {
+        const dashboardResponse = await fetch('/api/dashboard');
+        const dashboardResult = await dashboardResponse.json();
+        
+        if (dashboardResult.success) {
+          treeCount = dashboardResult.data.treeCount || treeCount;
+          recentDonations = dashboardResult.data.recentDonations || [];
+        }
+      } catch (error) {
+        console.log('Dashboard API not available, using mock data');
+        // Mock donations data
+        recentDonations = [
+          {
+            id: '1',
+            name: 'John Doe',
+            amount: 50,
+            currency: 'USD',
+            date: new Date().toISOString(),
+            email: 'john@example.com'
+          },
+          {
+            id: '2',
+            name: 'Jane Smith',
+            amount: 100,
+            currency: 'USD',
+            date: new Date(Date.now() - 86400000).toISOString(),
+            email: 'jane@example.com'
+          }
+        ];
+      }
 
-  // const handleLogout = () => {
-  //   // Redirect to admin login
-  //   window.location.href = '/admin';
-  //   toast.success('Logged out successfully');
-  // };
-
-  // Export all data to Excel
-  const exportAllData = () => {
-    try {
-      const allData = {
+      const dashboardData: DashboardData = {
         treeCount,
         recentDonations,
         recentRegistrations,
-        exportDate: new Date().toISOString()
+        totalRiders: registrations.length
       };
+
+      setDashboardData(dashboardData);
+      setNewTreeCount(dashboardData.treeCount.count);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to connect to server');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load data on component mount
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  // Update tree count
+  const updateTreeCount = async () => {
+    if (!dashboardData) return;
+    
+    try {
+      setUpdating(true);
+      const response = await fetch('/api/dashboard', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'updateTreeCount',
+          data: { count: newTreeCount }
+        }),
+      });
       
+      const result = await response.json();
+      
+      if (result.success) {
+        setDashboardData(prev => prev ? {
+          ...prev,
+          treeCount: result.data.treeCount
+        } : null);
+        toast.success('Tree count updated successfully!');
+      } else {
+        toast.error('Failed to update tree count');
+        console.error('Tree count update error:', result.error);
+      }
+    } catch (error) {
+      console.error('Error updating tree count:', error);
+      toast.error('Failed to update tree count');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Refresh data
+  const refreshData = () => {
+    fetchDashboardData();
+    toast.success('Data refreshed!');
+  };
+
+  // Export all data to Excel
+  const exportAllData = () => {
+    if (!dashboardData) return;
+    
+    try {
       const wb = XLSX.utils.book_new();
       
       // Tree count sheet
-      const treeWs = XLSX.utils.json_to_sheet([{ treeCount, lastUpdated: new Date().toISOString() }]);
+      const treeWs = XLSX.utils.json_to_sheet([{
+        treeCount: dashboardData.treeCount.count,
+        lastUpdated: dashboardData.treeCount.lastUpdated
+      }]);
       XLSX.utils.book_append_sheet(wb, treeWs, 'Tree Count');
       
       // Donations sheet
-      const donationsWs = XLSX.utils.json_to_sheet(recentDonations);
+      const donationsWs = XLSX.utils.json_to_sheet(dashboardData.recentDonations);
       XLSX.utils.book_append_sheet(wb, donationsWs, 'Recent Donations');
       
-      // Registrations sheet
-      const registrationsWs = XLSX.utils.json_to_sheet(recentRegistrations);
-      XLSX.utils.book_append_sheet(wb, registrationsWs, 'Recent Registrations');
+      // Registrations sheet - format the data properly
+      const formattedRegistrations = dashboardData.recentRegistrations.map(reg => ({
+        ID: reg.id,
+        Type: reg.type,
+        Name: reg.type === 'individual' ? `${reg.firstName} ${reg.lastName}` : reg.clubName,
+        AdminName: reg.type === 'club' ? reg.adminName : '',
+        Email: reg.email,
+        Phone: reg.phone,
+        Country: reg.country,
+        City: reg.city,
+        LicenceNumber: reg.licenceNumber,
+        RidingExperience: reg.ridingExperience || '',
+        Bio: reg.bio || '',
+        Description: reg.description || '',
+        Website: reg.website || '',
+        Instagram: reg.instagram || '',
+        Facebook: reg.facebook || '',
+        Twitter: reg.twitter || '',
+        RegistrationDate: reg.registrationDate
+      }));
+      
+      const registrationsWs = XLSX.utils.json_to_sheet(formattedRegistrations);
+      XLSX.utils.book_append_sheet(wb, registrationsWs, 'Registrations');
+      
+      // Summary sheet
+      const summaryWs = XLSX.utils.json_to_sheet([{
+        totalTrees: dashboardData.treeCount.count,
+        totalRiders: dashboardData.totalRiders,
+        totalDonationAmount: dashboardData.recentDonations.reduce((sum, d) => sum + d.amount, 0),
+        totalRegistrations: dashboardData.recentRegistrations.length,
+        individualRiders: dashboardData.recentRegistrations.filter(r => r.type === 'individual').length,
+        clubs: dashboardData.recentRegistrations.filter(r => r.type === 'club').length,
+        exportDate: new Date().toISOString()
+      }]);
+      XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
       
       XLSX.writeFile(wb, `dashboard_data_${new Date().toISOString().split('T')[0]}.xlsx`);
       toast.success('Dashboard data exported to Excel!');
@@ -154,17 +256,52 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Helper function to format registration display name
+  const getRegistrationDisplayName = (registration: Registration): string => {
+    if (registration.type === 'individual') {
+      return `${registration.firstName || ''} ${registration.lastName || ''}`.trim();
+    } else {
+      return registration.clubName || 'Unknown Club';
+    }
+  };
+
+  // Helper function to format location
+  const getLocationString = (registration: Registration): string => {
+    return `${registration.city}, ${registration.country}`;
+  };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="flex items-center space-x-2">
+          <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+          <span className="text-xl text-gray-600">Loading dashboard data...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if no data
+  if (!dashboardData) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Failed to load dashboard data</h2>
+          <Button onClick={fetchDashboardData}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  } 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
-      
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center space-x-3">
-            {/* <div className="flex items-center space-x-2">
-              {/* <Bike className="h-8 w-8 text-primary" /> */}
-              {/* <TreePine className="h-8 w-8 text-green-600" /> 
-            </div> */}
             <div>
               <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
                 Admin Dashboard
@@ -172,10 +309,16 @@ export default function AdminDashboardPage() {
               <p className="text-gray-600">Manage Save Earth Ride Platform</p>
             </div>
           </div>
-          {/* <Button onClick={handleLogout} variant="outline">
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button> */}
+          <div className="flex items-center space-x-2">
+            <Button onClick={refreshData} variant="outline">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+            <Button onClick={exportAllData} variant="outline">
+              <Upload className="h-4 w-4 mr-2" />
+              Export Data
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -187,7 +330,9 @@ export default function AdminDashboardPage() {
                   <TreePine className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-green-500 dark:text-blue-500">{treeCount.toLocaleString()}</div>
+                  <div className="text-2xl font-bold text-green-500 dark:text-blue-500">
+                    {dashboardData.treeCount.count.toLocaleString()}
+                  </div>
                   <div className="text-sm text-green-500 dark:text-blue-500">Trees Planted</div>
                 </div>
               </div>
@@ -201,14 +346,16 @@ export default function AdminDashboardPage() {
                   <Users className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-green-500 dark:text-blue-500">52,340</div>
-                  <div className="text-sm text-green-500 dark:text-blue-500">Global Riders</div>
+                  <div className="text-2xl font-bold text-green-500 dark:text-blue-500">
+                    {dashboardData.totalRiders.toLocaleString()}
+                  </div>
+                  <div className="text-sm text-green-500 dark:text-blue-500">Total Registered</div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+          {/* <Card className="bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardContent className="p-6">
               <div className="flex items-center space-x-4">
                 <div className="p-3 bg-purple-500 rounded-full">
@@ -216,13 +363,13 @@ export default function AdminDashboardPage() {
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-green-500 dark:text-blue-500">
-                    ${recentDonations.reduce((sum, d) => sum + d.amount, 0).toLocaleString()}
+                    ${dashboardData.recentDonations.reduce((sum, d) => sum + d.amount, 0).toLocaleString()}
                   </div>
                   <div className="text-sm text-green-500 dark:text-blue-500">Recent Donations</div>
                 </div>
               </div>
             </CardContent>
-          </Card>
+          </Card> */}
 
           <Card className="bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardContent className="p-6">
@@ -231,8 +378,10 @@ export default function AdminDashboardPage() {
                   <UserPlus className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-green-500 dark:text-blue-500">{recentRegistrations.length}</div>
-                  <div className="text-sm text-green-500 dark:text-blue-500">New Registrations</div>
+                  <div className="text-2xl font-bold text-green-500 dark:text-blue-500">
+                    {dashboardData.recentRegistrations.length}
+                  </div>
+                  <div className="text-sm text-green-500 dark:text-blue-500">Recent Registrations</div>
                 </div>
               </div>
             </CardContent>
@@ -257,16 +406,26 @@ export default function AdminDashboardPage() {
                   value={newTreeCount}
                   onChange={(e) => setNewTreeCount(parseInt(e.target.value) || 0)}
                   className="text-2xl font-bold text-green-600"
+                  disabled={updating}
                 />
               </div>
-              <Button onClick={updateTreeCount} className="mt-6">
-                <Save className="h-4 w-4 mr-2" />
+              <Button onClick={updateTreeCount} disabled={updating} className="mt-6">
+                {updating ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
                 Update Count
               </Button>
             </div>
             <div className="bg-green-50 p-4 rounded-lg">
-              <div className="text-3xl font-bold text-green-600">{treeCount.toLocaleString()}</div>
+              <div className="text-3xl font-bold text-green-600">
+                {dashboardData.treeCount.count.toLocaleString()}
+              </div>
               <div className="text-sm text-gray-600">Trees planted globally</div>
+              <div className="text-xs text-gray-500 mt-1">
+                Last updated: {new Date(dashboardData.treeCount.lastUpdated).toLocaleString()}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -274,7 +433,7 @@ export default function AdminDashboardPage() {
         {/* Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Recent Donations */}
-          <Card>
+          {/* <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <CreditCard className="h-5 w-5 text-purple-600" />
@@ -283,26 +442,37 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {recentDonations.map((donation) => (
-                  <div key={donation.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <div className="font-medium">{donation.name}</div>
-                      <div className="text-sm text-gray-500 flex items-center space-x-2">
-                        <Clock className="h-3 w-3" />
-                        <span>{donation.date}</span>
+                {dashboardData.recentDonations.length > 0 ? (
+                  dashboardData.recentDonations.map((donation) => (
+                    <div key={donation.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <div className="font-medium">{donation.name}</div>
+                        <div className="text-sm text-gray-500 flex items-center space-x-2">
+                          <Clock className="h-3 w-3" />
+                          <span>{new Date(donation.date).toLocaleDateString()}</span>
+                        </div>
+                        {donation.email && (
+                          <div className="text-xs text-gray-400">{donation.email}</div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-green-600">
+                          {donation.currency === 'USD' ? '$' : donation.currency === 'EUR' ? '€' : '£'}
+                          {donation.amount.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-500">{donation.currency}</div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-bold text-green-600">
-                        {donation.currency === 'USD' ? '$' : donation.currency === 'EUR' ? '€' : '£'}{donation.amount}
-                      </div>
-                      <div className="text-xs text-gray-500">{donation.currency}</div>
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <CreditCard className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>No recent donations</p>
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
-          </Card>
+          </Card> */}
 
           {/* Recent Registrations */}
           <Card>
@@ -314,91 +484,196 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {recentRegistrations.map((registration) => (
-                  <div key={registration.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <div className="font-medium">{registration.name}</div>
-                      <div className="text-sm text-gray-500">{registration.location}</div>
+                {dashboardData.recentRegistrations.length > 0 ? (
+                  dashboardData.recentRegistrations.map((registration) => (
+                    <div key={registration.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex-1">
+                        <div className="font-medium">{getRegistrationDisplayName(registration)}</div>
+                        <div className="text-sm text-gray-500 flex items-center space-x-2">
+                          <Clock className="h-3 w-3" />
+                          <span>{new Date(registration.registrationDate || '').toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center space-x-4 text-xs text-gray-400">
+                          <div className="flex items-center space-x-1">
+                            <MapPin className="h-3 w-3" />
+                            <span>{getLocationString(registration)}</span>
+                          </div>
+                          {registration.ridingExperience && (
+                            <div className="flex items-center space-x-1">
+                              <Bike className="h-3 w-3" />
+                              <span>{registration.ridingExperience}</span>
+                            </div>
+                          )}
+                        </div>
+                        {registration.email && (
+                          <div className="text-xs text-gray-400 mt-1">{registration.email}</div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <Badge 
+                          variant={registration.type === 'club' ? 'default' : 'secondary'}
+                          className="text-xs mb-1"
+                        >
+                          {registration.type === 'club' ? 'Club' : 'Individual'}
+                        </Badge>
+                        <div className="text-xs text-gray-400">
+                          {registration.phone}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <Badge variant={registration.type === 'Club' ? 'default' : 'outline'}>
-                        {registration.type}
-                      </Badge>
-                      <div className="text-xs text-gray-500 mt-1">{registration.date}</div>
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <UserPlus className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>No recent registrations</p>
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Quick Actions */}
-        {/* <Card>
+        {/* Registration Statistics */}
+        {/* <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
+            <CardTitle className="flex items-center space-x-2">
+              <BarChart3 className="h-5 w-5 text-blue-600" />
+              <span>Registration Statistics</span>
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Link href="/admin/drives">
-                <Button variant="outline" className="w-full h-20 flex flex-col space-y-2">
-                  <Flag className="h-6 w-6" />
-                  <span>Drives Manager</span>
-                </Button>
-              </Link>
-              <Link href="/admin/timeline">
-                <Button variant="outline" className="w-full h-20 flex flex-col space-y-2">
-                  <Calendar className="h-6 w-6" />
-                  <span>Timeline Manager</span>
-                </Button>
-              </Link>
-              <Link href="/admin/gallery">
-                <Button variant="outline" className="w-full h-20 flex flex-col space-y-2">
-                  <Users className="h-6 w-6" />
-                  <span>Gallery Manager</span>
-                </Button>
-              </Link>
-              <Link href="/admin/blog">
-                <Button variant="outline" className="w-full h-20 flex flex-col space-y-2">
-                  <BookOpen className="h-6 w-6" />
-                  <span>Blog Manager</span>
-                </Button>
-              </Link>
-              <Link href="/admin/map">
-                <Button variant="outline" className="w-full h-20 flex flex-col space-y-2">
-                  <MapPin className="h-6 w-6" />
-                  <span>Map Manager</span>
-                </Button>
-              </Link>
-              <Link href="/admin/sponsors">
-                <Button variant="outline" className="w-full h-20 flex flex-col space-y-2">
-                  <Handshake className="h-6 w-6" />
-                  <span>Sponsors Manager</span>
-                </Button>
-              </Link>
-              <Link href="/admin/admins">
-                <Button variant="outline" className="w-full h-20 flex flex-col space-y-2">
-                  <Shield className="h-6 w-6" />
-                  <span>Admin Manager</span>
-                </Button>
-              </Link>
-              <Button 
-                variant="outline" 
-                className="w-full h-20 flex flex-col space-y-2"
-                onClick={exportAllData}
-              >
-                <Upload className="h-6 w-6" />
-                <span>Export Data</span>
-              </Button>
-              <Link href="/">
-                <Button variant="outline" className="w-full h-20 flex flex-col space-y-2">
-                  <Eye className="h-6 w-6" />
-                  <span>View Website</span>
-                </Button>
-              </Link>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-blue-600">
+                  {dashboardData.recentRegistrations.filter(r => r.type === 'individual').length}
+                </div>
+                <div className="text-sm text-gray-600">Individual Riders</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-green-600">
+                  {dashboardData.recentRegistrations.filter(r => r.type === 'club').length}
+                </div>
+                <div className="text-sm text-gray-600">Motorcycle Clubs</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-purple-600">
+                  {new Set(dashboardData.recentRegistrations.map(r => r.country)).size}
+                </div>
+                <div className="text-sm text-gray-600">Countries</div>
+              </div>
             </div>
           </CardContent>
         </Card> */}
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <TreePine className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <div className="font-medium text-sm">Tree Management</div>
+                  <div className="text-xs text-gray-500">Update tree counts</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Users className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <div className="font-medium text-sm">User Management</div>
+                  <div className="text-xs text-gray-500">Manage riders</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <CreditCard className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <div className="font-medium text-sm">Donations</div>
+                  <div className="text-xs text-gray-500">View all donations</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <BarChart3 className="h-5 w-5 text-orange-600" />
+                </div>
+                <div>
+                  <div className="font-medium text-sm">Analytics</div>
+                  <div className="text-xs text-gray-500">View reports</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* System Status */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Shield className="h-5 w-5 text-green-600" />
+              <span>System Status</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <div>
+                  <div className="font-medium">Registration API</div>
+                  <div className="text-sm text-gray-500">Connected</div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <div>
+                  <div className="font-medium">Database</div>
+                  <div className="text-sm text-gray-500">Connected</div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <div>
+                  <div className="font-medium">Google Sheets</div>
+                  <div className="text-sm text-gray-500">Synced</div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Footer */}
+        {/* <div className="text-center text-sm text-gray-500 mt-8">
+          <p>Save Earth Ride Admin Dashboard • Last updated: {new Date().toLocaleString()}</p>
+          <div className="flex justify-center items-center space-x-4 mt-2">
+            <Link href="/" className="hover:text-green-600 transition-colors">
+              <Globe className="h-4 w-4 inline mr-1" />
+              View Public Site
+            </Link>
+            <span>•</span>
+            <Link href="/register" className="hover:text-green-600 transition-colors">
+              <UserPlus className="h-4 w-4 inline mr-1" />
+              Registration Form
+            </Link>
+          </div>
+        </div> */}
       </div>
     </div>
   );

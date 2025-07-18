@@ -1,73 +1,102 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Search, Calendar, User, ArrowRight, TreePine } from 'lucide-react';
+import { Search, Calendar, User, ArrowRight, TreePine, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
-const blogPosts = [
-  {
-    id: 1,
-    title: 'The Environmental Impact of Motorcycle Tourism',
-    excerpt: 'Exploring how motorcycle tourism can be transformed into a force for environmental conservation and sustainable travel.',
-    content: 'Full article content here...',
-    blogURL: '',
-    author: {
-      name: 'Dr. Sarah Green',
-      avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150',
-      bio: 'Environmental Scientist',
-    },
-    date: '2024-10-12',
-    tags: ['Environment', 'Tourism', 'Sustainability'],
-    image: 'https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=600',
-    readTime: '8 min read',
-    featured: true,
+// Define the blog post interface to match your Google Sheets structure
+interface BlogPost {
+  id: number;
+  title: string;
+  excerpt: string;
+  content: string;
+  blogURL: string;
+  authorName: string;
+  authorBio: string;
+  authorAvatar: string;
+  tags: string[];
+  image: string;
+  readTime: string;
+  featured: boolean;
+  status: 'draft' | 'published' | 'archived';
+  category: string;
+  date: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Transform the Google Sheets data to match the component's expected structure
+const transformBlogPost = (post: BlogPost) => ({
+  id: post.id,
+  title: post.title,
+  excerpt: post.excerpt,
+  content: post.content,
+  blogURL: post.blogURL,
+  author: {
+    name: post.authorName,
+    avatar: post.authorAvatar,
+    bio: post.authorBio,
   },
-  {
-    id: 2,
-    title: 'Tree Planting Techniques for Urban Environments',
-    excerpt: 'Learn about the best practices for planting trees in urban settings and how motorcycle clubs can make a difference.',
-    content: 'Full article content here...',
-    author: {
-      name: 'Miguel Rodriguez',
-      avatar: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=150',
-      bio: 'Urban Forestry Expert',
-    },
-    date: '2024-05-12',
-    tags: ['Tree Planting', 'Urban Forestry', 'Community'],
-    image: 'https://images.pexels.com/photos/1005648/pexels-photo-1005648.jpeg?auto=compress&cs=tinysrgb&w=600',
-    readTime: '6 min read',
-    featured: false,
-  },
-  {
-    id: 6,
-    title: 'Indigenous Wisdom in Environmental Conservation',
-    excerpt: 'Learning from indigenous communities about sustainable living and environmental stewardship.',
-    content: 'Full article content here...',
-    author: {
-      name: 'Maria Santos',
-      avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150',
-      bio: 'Cultural Anthropologist',
-    },
-    date: '2024-08-11',
-    tags: ['Indigenous', 'Wisdom', 'Conservation'],
-    image: 'https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=600',
-    readTime: '9 min read',
-    featured: false,
-  },
-];
+  date: post.date,
+  tags: post.tags,
+  image: post.image,
+  readTime: post.readTime,
+  featured: post.featured,
+  status: post.status,
+  category: post.category,
+});
 
 export default function BlogPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const allTags = [...new Set(blogPosts.flatMap(post => post.tags))];
+  // Fetch blog posts from Google Sheets API
+  useEffect(() => {
+    const fetchBlogPosts = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/blog');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch blog posts');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Filter only published posts for the public blog page
+          const publishedPosts = data.data.filter((post: BlogPost) => post.status === 'published');
+          setBlogPosts(publishedPosts);
+        } else {
+          throw new Error(data.error || 'Failed to fetch blog posts');
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+        console.error('Error fetching blog posts:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBlogPosts();
+  }, []);
+
+  // Transform blog posts for component usage
+  const transformedPosts = blogPosts.map(transformBlogPost);
+
+  // Get all unique tags from the fetched posts
+  const allTags = [...new Set(transformedPosts.flatMap(post => post.tags))];
   
-  const filteredPosts = blogPosts.filter(post => {
+  // Filter posts based on search query and selected tag
+  const filteredPosts = transformedPosts.filter(post => {
     const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          post.excerpt.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTag = !selectedTag || post.tags.includes(selectedTag);
@@ -76,6 +105,32 @@ export default function BlogPage() {
 
   const featuredPost = filteredPosts.find(post => post.featured);
   const regularPosts = filteredPosts.filter(post => !post.featured);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-lg text-gray-600">Loading blog posts...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-red-600 mb-4">Error: {error}</p>
+          <Button onClick={() => window.location.reload()}>
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -92,17 +147,17 @@ export default function BlogPage() {
 
         {/* Search and Filter */}
         <div className="mb-12">
-          <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-full md:w-1/2 mx-auto pl-5" />
-              <Input
-                placeholder="Search articles..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 w-full md:w-1/2 mx-auto"
-              />
-            </div>
+          <div className="relative flex-1 mb-4">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <Input
+              placeholder="Search articles..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 w-full md:w-1/2 mx-auto"
+            />
+          </div>
           <div className="flex flex-col md:flex-row gap-4 items-center">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 justify-center">
               <Button
                 variant={!selectedTag ? "default" : "outline"}
                 onClick={() => setSelectedTag('')}
@@ -137,8 +192,8 @@ export default function BlogPage() {
                   />
                 </div>
                 <div className="md:w-1/2 p-8">
-                  <Badge className="mb-4 bg-gray/80 dark:text-blue-500 text-primary">
-                    {/* <TreePine className="h-3 w-3 mr-1" /> */}
+                  <Badge className="mb-4 bg-primary/10 text-primary">
+                    <TreePine className="h-3 w-3 mr-1" />
                     Featured Article
                   </Badge>
                   <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -167,8 +222,8 @@ export default function BlogPage() {
                       </span>
                       <span>{featuredPost.readTime}</span>
                     </div>
-                    <Button>
-                      <Link href={{pathname: featuredPost.blogURL}} className="flex items-center">
+                    <Button asChild>
+                      <Link href={featuredPost.blogURL || '#'} className="flex items-center">
                         Read More
                         <ArrowRight className="h-4 w-4 ml-2" />
                       </Link>
@@ -183,7 +238,7 @@ export default function BlogPage() {
         {/* Regular Posts Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {regularPosts.map(post => (
-            <Card key={post.id} className="card-hover border-0 shadow-lg ">
+            <Card key={post.id} className="card-hover border-0 shadow-lg">
               <CardContent className="p-0">
                 <div className="relative">
                   <img
@@ -229,10 +284,11 @@ export default function BlogPage() {
           ))}
         </div>
 
-        {filteredPosts.length === 0 && (
+        {/* No posts found message */}
+        {filteredPosts.length === 0 && !loading && (
           <div className="text-center py-12">
             <p className="text-xl text-gray-600">
-              No articles found matching your search criteria.
+              No published articles found matching your search criteria.
             </p>
           </div>
         )}

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -11,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Bike, Plus, Edit, Trash2, Save, X, Calendar, MapPin, Users, TreePine,
-  ArrowLeft, Clock, Target, Flag, Upload, AlertCircle
+  ArrowLeft, Clock, Target, Flag, Upload, AlertCircle, RefreshCw, Database
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -45,34 +46,14 @@ const validateDriveData = (data: any) => {
   return errors;
 };
 
-// Initial drives data with comprehensive fields
-const initialDrivesData = [
-  {
-    id: 1,
-    title: 'New Year Green Resolution Ride',
-    location: 'Mumbai, India',
-    date: '2025-01-01',
-    participants: 150,
-    treesTarget: 500,
-    status: 'upcoming',
-    registrationOpen: true,
-    description: 'Start the new year with a green resolution! Join us for a massive tree planting drive.',
-    organizer: 'Mumbai Riders Club',
-    contactEmail: 'mumbai@ridersclub.com',
-    registrationDeadline: '2024-12-25',
-    meetingPoint: 'Gateway of India',
-    duration: '6 hours',
-    difficulty: 'Easy',
-    logo: '/Save-earth-ride-logo.jpg'
-  }
-];
-
 export default function AdminDrivesPage() {
-  const [drivesData, setDrivesData] = useState(initialDrivesData);
+  const [drivesData, setDrivesData] = useState<any[]>([]);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   const [logoPreview, setLogoPreview] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     location: '',
@@ -95,45 +76,115 @@ export default function AdminDrivesPage() {
   const difficulties = ['Easy', 'Moderate', 'Challenging', 'Expert'];
 
   /**
-   * Data Loading and Persistence
-   * 
-   * Loads drive data from localStorage on component mount.
-   * In production, this would be replaced with API calls to MongoDB.
+   * API Functions
    */
-  useEffect(() => {
-    loadDataFromStorage();
-  }, []);
-
-  const loadDataFromStorage = () => {
+  const fetchDrives = async () => {
+    setIsLoading(true);
     try {
-      const savedData = localStorage.getItem('currentDrives');
-      if (savedData) {
-        const parsedData = JSON.parse(savedData);
-        // Validate loaded data structure
-        const validData = parsedData.filter((item: any) => 
-          item.id && item.title && item.location && item.date
-        );
-        setDrivesData(validData);
-      }
+      const response = await fetch('/api/drives');
+      if (!response.ok) throw new Error('Failed to fetch drives');
+      const data = await response.json();
+      setDrivesData(data);
     } catch (error) {
-      console.error('Error loading drives data:', error);
-      toast.error('Error loading drives data');
+      console.error('Error fetching drives:', error);
+      toast.error('Failed to load drives');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const initializeSheet = async () => {
+    setIsInitializing(true);
+    try {
+      const response = await fetch('/api/drives', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operation: 'initialize_sheet' })
+      });
+      
+      if (!response.ok) throw new Error('Failed to initialize sheet');
+      
+      toast.success('Google Sheet initialized successfully!');
+      await fetchDrives();
+    } catch (error) {
+      console.error('Error initializing sheet:', error);
+      toast.error('Failed to initialize Google Sheet');
+    } finally {
+      setIsInitializing(false);
+    }
+  };
+
+  const saveDrive = async (driveData: any) => {
+    try {
+      const response = await fetch('/api/drives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(driveData)
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save drive');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error saving drive:', error);
+      throw error;
+    }
+  };
+
+  const updateDrive = async (id: string, driveData: any) => {
+    try {
+      const response = await fetch('/api/drives', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...driveData })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update drive');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating drive:', error);
+      throw error;
+    }
+  };
+
+  const deleteDrive = async (id: string) => {
+    try {
+      const response = await fetch(`/api/drives?id=${id}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete drive');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error deleting drive:', error);
+      throw error;
     }
   };
 
   /**
-   * Data Export and Real-time Updates
-   * 
-   * Saves data to localStorage and Excel file, then triggers real-time updates
-   * to the user-facing banner component.
+   * Component Lifecycle
    */
-  const saveDataToFile = (data: any[]) => {
+  useEffect(() => {
+    fetchDrives();
+  }, []);
+
+  /**
+   * Data Export Functions
+   */
+  const exportToExcel = () => {
     try {
-      // Save to localStorage for persistence
-      localStorage.setItem('currentDrives', JSON.stringify(data));
-      toast.success('Current Drives saved successfully!');
-      // Export to Excel with proper formatting
-      const excelData = data.map(item => ({
+      const excelData = drivesData.map(item => ({
         ...item,
         registrationOpen: item.registrationOpen ? 'Yes' : 'No',
         participants: Number(item.participants) || 0,
@@ -145,48 +196,26 @@ export default function AdminDrivesPage() {
       XLSX.utils.book_append_sheet(wb, ws, 'Current Drives');
       XLSX.writeFile(wb, `current_drives_${new Date().toISOString().split('T')[0]}.xlsx`);
       
-      toast.success('Drives data saved successfully!');
+      toast.success('Excel file exported successfully!');
     } catch (error) {
-      console.error('Error saving drives data:', error);
-      toast.error('Failed to save drives data');
-    }
-  };
-
-  /**
-   * Real-time Update Trigger
-   * 
-   * Dispatches custom event to notify other components (like the banner)
-   * of data changes for immediate UI updates.
-   */
-  const updateDrivesData = (newData: any[]) => {
-    setDrivesData(newData);
-    saveDataToFile(newData);
-    
-    // Trigger real-time update for banner and other components
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('adminDataUpdate', { 
-        detail: { section: 'currentDrives', data: newData } 
-      }));
+      console.error('Error exporting to Excel:', error);
+      toast.error('Failed to export Excel file');
     }
   };
 
   /**
    * Logo Upload Handler
-   * 
-   * Handles logo file upload with validation and preview generation.
-   * Converts file to base64 for storage (in production, would upload to cloud storage).
    */
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type and size
     if (!file.type.startsWith('image/')) {
       toast.error('Please select a valid image file');
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+    if (file.size > 5 * 1024 * 1024) {
       toast.error('Image size should be less than 5MB');
       return;
     }
@@ -201,37 +230,36 @@ export default function AdminDrivesPage() {
   };
 
   /**
-   * Add New Drive Handler
-   * 
-   * Validates form data and adds new drive with comprehensive error handling.
+   * Form Handlers
    */
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const errors = validateDriveData(formData);
     if (errors.length > 0) {
       toast.error(`Validation errors: ${errors.join(', ')}`);
       return;
     }
 
-    const newItem = {
-      id: Date.now(),
-      ...formData,
-      participants: parseInt(formData.participants) || 0,
-      treesTarget: parseInt(formData.treesTarget) || 0
-    };
+    setIsLoading(true);
+    try {
+      const driveData = {
+        ...formData,
+        participants: parseInt(formData.participants) || 0,
+        treesTarget: parseInt(formData.treesTarget) || 0
+      };
 
-    const updatedData = [...drivesData, newItem];
-    updateDrivesData(updatedData);
-    
-    resetForm();
-    setIsAddingNew(false);
-    toast.success('Drive added successfully!');
+      await saveDrive(driveData);
+      await fetchDrives();
+      
+      resetForm();
+      setIsAddingNew(false);
+      toast.success('Drive added successfully!');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to add drive');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  /**
-   * Edit Drive Handler
-   * 
-   * Populates form with existing drive data for editing.
-   */
   const handleEdit = (item: any) => {
     setEditingItem(item);
     setFormData({
@@ -254,53 +282,49 @@ export default function AdminDrivesPage() {
     setLogoPreview(item.logo || '');
   };
 
-  /**
-   * Update Drive Handler
-   * 
-   * Validates and updates existing drive data.
-   */
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     const errors = validateDriveData(formData);
     if (errors.length > 0) {
       toast.error(`Validation errors: ${errors.join(', ')}`);
       return;
     }
 
-    const updatedData = drivesData.map(item => 
-      item.id === editingItem.id 
-        ? {
-            ...item,
-            ...formData,
-            participants: parseInt(formData.participants) || 0,
-            treesTarget: parseInt(formData.treesTarget) || 0
-          }
-        : item
-    );
+    setIsLoading(true);
+    try {
+      const driveData = {
+        ...formData,
+        participants: parseInt(formData.participants) || 0,
+        treesTarget: parseInt(formData.treesTarget) || 0
+      };
 
-    updateDrivesData(updatedData);
-    setEditingItem(null);
-    resetForm();
-    toast.success('Drive updated successfully!');
+      await updateDrive(editingItem.id, driveData);
+      await fetchDrives();
+      
+      setEditingItem(null);
+      resetForm();
+      toast.success('Drive updated successfully!');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update drive');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  /**
-   * Delete Drive Handler
-   * 
-   * Removes drive with confirmation and updates all related components.
-   */
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this drive?')) return;
     
-    const updatedData = drivesData.filter(item => item.id !== id);
-    updateDrivesData(updatedData);
-    toast.success('Drive deleted successfully!');
+    setIsLoading(true);
+    try {
+      await deleteDrive(id);
+      await fetchDrives();
+      toast.success('Drive deleted successfully!');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete drive');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  /**
-   * Form Reset Helper
-   * 
-   * Clears all form fields and resets state.
-   */
   const resetForm = () => {
     setFormData({
       title: '', location: '', date: '', participants: '', treesTarget: '', 
@@ -367,7 +391,7 @@ export default function AdminDrivesPage() {
             </div>
           </div>
           <div className="flex items-center space-x-3">
-            <Button onClick={() => saveDataToFile(drivesData)}  variant="outline">
+            <Button onClick={() => saveDrive(drivesData)}  variant="outline">
               <Calendar className="h-4 w-4 mr-2" />
               Export Excel
             </Button>

@@ -300,7 +300,7 @@ export default function AdminPage() {
             </Button>
             
             {/* Demo Credentials Info */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+            {/* <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
               <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">
                 Demo Credentials:
               </h4>
@@ -308,7 +308,7 @@ export default function AdminPage() {
                 <div><strong>Super Admin:</strong> admin / saveearthride2024</div>
                 <div><strong>Manager:</strong> manager / manager123</div>
               </div>
-            </div>
+            </div> */}
             
             {/* Role Information */}
             {/* <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">

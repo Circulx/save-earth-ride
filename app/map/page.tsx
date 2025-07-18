@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Calendar, Users, TreePine, Navigation, Bike } from 'lucide-react';
+import { MapPin, Calendar, Users, TreePine, Navigation, Bike, Loader2, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 
@@ -21,142 +21,64 @@ const MapComponent = dynamic(() => import('@/components/map/InteractiveMap'), {
   ),
 });
 
-// Sample map data (in production, this would come from admin panel)
-const mapLocations = [
-  {
-    id: 1,
-    name: 'Himalayan Tree Drive',
-    location: 'Kathmandu, Nepal',
-    coordinates: { lat: 27.7172, lng: 85.3240 },
-    date: '2024-12-15',
-    type: 'Tree Planting',
-    participants: 200,
-    treesPlanted: 1000,
-    image: 'https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=300',
-  },
-  {
-    id: 2,
-    name: 'Pacific Coast Green Ride',
-    location: 'Sydney, Australia',
-    coordinates: { lat: -33.8688, lng: 151.2093 },
-    date: '2024-11-20',
-    type: 'Beach Cleanup',
-    participants: 350,
-    treesPlanted: 800,
-    image: 'https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=300',
-  },
-  {
-    id: 3,
-    name: 'European Unity Ride',
-    location: 'Berlin, Germany',
-    coordinates: { lat: 52.5200, lng: 13.4050 },
-    date: '2024-10-05',
-    type: 'Awareness',
-    participants: 1200,
-    treesPlanted: 3000,
-    image: 'https://images.pexels.com/photos/1005648/pexels-photo-1005648.jpeg?auto=compress&cs=tinysrgb&w=300',
-  },
-  {
-    id: 4,
-    name: 'Amazon Conservation',
-    location: 'Manaus, Brazil',
-    coordinates: { lat: -3.1190, lng: -60.0217 },
-    date: '2024-09-12',
-    type: 'Conservation',
-    participants: 500,
-    treesPlanted: 2500,
-    image: 'https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=300',
-  },
-  {
-    id: 5,
-    name: 'Desert Oasis Project',
-    location: 'Dubai, UAE',
-    coordinates: { lat: 25.2048, lng: 55.2708 },
-    date: '2024-08-30',
-    type: 'Desert Greening',
-    participants: 150,
-    treesPlanted: 500,
-    image: 'https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=300',
-  },
-  {
-    id: 6,
-    name: 'Great Lakes Restoration',
-    location: 'Toronto, Canada',
-    coordinates: { lat: 43.6532, lng: -79.3832 },
-    date: '2024-07-15',
-    type: 'Water Conservation',
-    participants: 400,
-    treesPlanted: 1500,
-    image: 'https://images.pexels.com/photos/1005648/pexels-photo-1005648.jpeg?auto=compress&cs=tinysrgb&w=300',
-  },
-];
+// Interface for map location data
+interface MapLocation {
+  id: number;
+  name: string;
+  location: string;
+  coordinates: { lat: number; lng: number };
+  date: string;
+  type: string;
+  participants: number;
+  treesPlanted: number;
+  image: string;
+  description?: string;
+  organizer?: string;
+  status?: string;
+}
 
 export default function MapPage() {
-  const [selectedLocation, setSelectedLocation] = useState<typeof mapLocations[0] | null>(null);
-  const [adminLocations, setAdminLocations] = useState(mapLocations);
+  const [selectedLocation, setSelectedLocation] = useState<MapLocation | null>(null);
+  const [mapLocations, setMapLocations] = useState<MapLocation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Listen for real-time updates from admin panel
-  useEffect(() => {
-    const handleAdminUpdate = (event: CustomEvent) => {
-      if (event.detail.section === 'mapLocations') {
-        setAdminLocations(event.detail.data);
-      }
-    };
-
-    window.addEventListener('adminDataUpdate', handleAdminUpdate as EventListener);
-    return () => window.removeEventListener('adminDataUpdate', handleAdminUpdate as EventListener);
-  }, []);
-
-  useEffect(() => {
-    const savedData = localStorage.getItem('selectedLocation');
-    if (savedData) {
-      try{
-        const parsed = JSON.parse(savedData);
-        const location = adminLocations.find(loc => loc.id === parsed.id);
-        setSelectedLocation(location || null);
-      } catch (error) {
-        console.error('Error Parsing save Location Data : ', error);
-      }
-    }
-
-    const handleAdminUpdate = (event: CustomEvent) => {
-      if (event.detail.section === 'mapLocations') {
-        setAdminLocations(event.detail.data);
-      }
-    };
-    window.addEventListener('adminDataUpdate', handleAdminUpdate as EventListener);
-    return () => window.removeEventListener('adminDataUpdate', handleAdminUpdate as EventListener);
-  }, []);
-
-  useEffect(() => {
-  // 1. Load from localStorage on first render
-  const savedMapData = localStorage.getItem('mapData');
-  if (savedMapData) {
+  // Load data from Google Sheets API
+  const loadMapData = async () => {
     try {
-      const parsed = JSON.parse(savedMapData);
-      if (Array.isArray(parsed)) {
-        setAdminLocations(parsed);
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch('/api/map');
+      const result = await response.json();
+      
+      if (result.success) {
+        setMapLocations(result.data);
+      } else {
+        setError('Failed to load map data');
+        console.error('API Error:', result.error);
       }
     } catch (error) {
-      console.error('Error parsing mapData from localStorage:', error);
-    }
-  }
-
-  // 2. Listen for admin updates
-  const handleAdminUpdate = (event: CustomEvent) => {
-    if (event.detail.section === 'mapLocations') {
-      setAdminLocations(event.detail.data);
+      console.error('Error loading map data:', error);
+      setError('Failed to connect to server');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // window.addEventListener('adminDataUpdate', handleAdminUpdate as EventListener);
-  // return () => window.removeEventListener('adminDataUpdate', handleAdminUpdate as EventListener);
+  // Load data on component mount
+  useEffect(() => {
+    loadMapData();
+  }, []);
 
-  window.addEventListener('storage', () => {
-    const updated = localStorage.getItem('mapData');
-    if (updated) setAdminLocations(JSON.parse(updated));
-  });
-}, []);
+  // Auto-refresh data every 5 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadMapData();
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, []);
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -166,20 +88,63 @@ export default function MapPage() {
       case 'Awareness': return 'bg-purple-100 text-purple-800';
       case 'Desert Greening': return 'bg-orange-100 text-orange-800';
       case 'Water Conservation': return 'bg-cyan-100 text-cyan-800';
+      case 'Urban Planting': return 'bg-lime-100 text-lime-800';
+      case 'Mountain Cleanup': return 'bg-indigo-100 text-indigo-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const handleLocationClick = (location: typeof mapLocations[0]) => {
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'bg-green-100 text-green-800';
+      case 'ongoing': return 'bg-blue-100 text-blue-800';
+      case 'upcoming': return 'bg-yellow-100 text-yellow-800';
+      case 'cancelled': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const handleLocationClick = (location: MapLocation) => {
     setSelectedLocation(location);
   };
 
-  const redirectToGallery = (location: typeof mapLocations[0]) => {
+  const redirectToGallery = (location: MapLocation) => {
     const city = location.location.split(', ')[0];
     const country = location.location.split(', ')[1];
     // Use router for better navigation
     window.location.href = `/gallery?city=${encodeURIComponent(city)}&country=${encodeURIComponent(country)}`;
   };
+
+  // Loading state
+  if (loading && mapLocations.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-xl text-gray-600">Loading map data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error && mapLocations.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 mb-4">
+            <MapPin className="h-12 w-12 mx-auto mb-2" />
+            <p className="text-xl font-semibold">Failed to load map data</p>
+            <p className="text-gray-600">{error}</p>
+          </div>
+          <Button onClick={loadMapData} className="mt-4">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -200,6 +165,23 @@ export default function MapPage() {
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
             Explore our worldwide environmental initiatives and see where Save Earth Ride has made a difference. Click on any pin to view photos from that location.
           </p>
+          
+          {/* Refresh Button */}
+          <div className="mt-6">
+            <Button 
+              onClick={loadMapData} 
+              variant="outline"
+              disabled={loading}
+              className="flex items-center space-x-2"
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              <span>Refresh Data</span>
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -214,7 +196,7 @@ export default function MapPage() {
               </CardHeader>
               <CardContent className="p-0">
                 <MapComponent 
-                  locations={adminLocations} 
+                  locations={mapLocations} 
                   onLocationClick={handleLocationClick}
                   selectedLocation={selectedLocation}
                 />
@@ -226,11 +208,16 @@ export default function MapPage() {
           <div className="space-y-6">
             <Card className="border-0 shadow-xl">
               <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-500 text-white">
-                <CardTitle>Event Locations</CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Event Locations</span>
+                  <Badge variant="secondary" className="bg-white/20 text-white">
+                    {mapLocations.length}
+                  </Badge>
+                </CardTitle>
               </CardHeader>
               <CardContent className="p-4">
                 <div className="space-y-4 max-h-96 overflow-y-auto">
-                  {adminLocations.map((location) => (
+                  {mapLocations.map((location) => (
                     <div
                       key={location.id}
                       className={`p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md ${
@@ -253,10 +240,15 @@ export default function MapPage() {
                           <p className="text-sm text-gray-600 mb-2">
                             {location.location}
                           </p>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 flex-wrap gap-1">
                             <Badge className={getTypeColor(location.type)}>
                               {location.type}
                             </Badge>
+                            {location.status && (
+                              <Badge className={getStatusColor(location.status)}>
+                                {location.status}
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -283,6 +275,11 @@ export default function MapPage() {
                       <h4 className="font-semibold text-gray-900 mb-2">
                         {selectedLocation.name}
                       </h4>
+                      {selectedLocation.description && (
+                        <p className="text-sm text-gray-600 mb-3">
+                          {selectedLocation.description}
+                        </p>
+                      )}
                       <div className="space-y-2 text-sm">
                         <div className="flex items-center space-x-2">
                           <MapPin className="h-4 w-4 text-gray-500" />
@@ -300,8 +297,26 @@ export default function MapPage() {
                           <TreePine className="h-4 w-4 text-gray-500" />
                           <span>{selectedLocation.treesPlanted} trees planted</span>
                         </div>
+                        {selectedLocation.organizer && (
+                          <div className="flex items-center space-x-2">
+                            <span className="text-gray-500">Organizer:</span>
+                            <span className="font-medium">{selectedLocation.organizer}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
+                    
+                    <div className="flex flex-wrap gap-2">
+                      <Badge className={getTypeColor(selectedLocation.type)}>
+                        {selectedLocation.type}
+                      </Badge>
+                      {selectedLocation.status && (
+                        <Badge className={getStatusColor(selectedLocation.status)}>
+                          {selectedLocation.status}
+                        </Badge>
+                      )}
+                    </div>
+                    
                     <Button 
                       className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600" 
                       onClick={() => redirectToGallery(selectedLocation)}
@@ -321,34 +336,47 @@ export default function MapPage() {
             <h2 className="text-3xl font-bold mb-4">
               Global Impact Statistics
             </h2>
+            <p className="text-green-100">
+              Real-time data from our global network
+            </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="text-center">
               <div className="text-4xl font-bold mb-2">
-                {adminLocations.length}
+                {mapLocations.length}
               </div>
               <div className="text-green-100">Event Locations</div>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold mb-2">
-                {adminLocations.reduce((sum, loc) => sum + loc.participants, 0).toLocaleString()}
+                {mapLocations.reduce((sum, loc) => sum + loc.participants, 0).toLocaleString()}
               </div>
               <div className="text-blue-100">Total Participants</div>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold mb-2">
-                {adminLocations.reduce((sum, loc) => sum + loc.treesPlanted, 0).toLocaleString()}
+                {mapLocations.reduce((sum, loc) => sum + loc.treesPlanted, 0).toLocaleString()}
               </div>
               <div className="text-purple-100">Trees Planted</div>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold mb-2">
-                {new Set(adminLocations.map(loc => loc.location.split(', ')[1])).size}
+                {new Set(mapLocations.map(loc => loc.location.split(', ')[1])).size}
               </div>
               <div className="text-orange-100">Countries</div>
             </div>
           </div>
         </div>
+
+        {/* Loading indicator for refresh */}
+        {loading && mapLocations.length > 0 && (
+          <div className="fixed top-4 right-4 bg-white rounded-lg shadow-lg p-4 border border-gray-200">
+            <div className="flex items-center space-x-2">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span className="text-sm text-gray-600">Refreshing data...</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

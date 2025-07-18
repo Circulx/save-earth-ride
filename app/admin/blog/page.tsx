@@ -11,76 +11,37 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { 
   BookOpen, Plus, Edit, Trash2, Save, X, Calendar, User,
-  ArrowLeft, Bike, FileText, Eye
+  ArrowLeft, Bike, FileText, Eye, ExternalLink, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
-// Initial blog data
-const initialBlogData = [
-  {
-    id: 1,
-    title: 'The Environmental Impact of Motorcycle Tourism',
-    excerpt: 'Exploring how motorcycle tourism can be transformed into a force for environmental conservation and sustainable travel.',
-    content: 'Full article content here...',
-    blogURL: '',
-    author: {
-      name: 'Dr. Sarah Green',
-      avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150',
-      bio: 'Environmental Scientist',
-    },
-    date: '2024-12-10',
-    tags: ['Environment', 'Tourism', 'Sustainability'],
-    image: 'https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=600',
-    readTime: '8 min read',
-    featured: true,
-    status: 'published',
-    category: 'Environment',
-  },
-  {
-    id: 2,
-    title: 'Tree Planting Techniques for Urban Environments',
-    excerpt: 'Learn about the best practices for planting trees in urban settings and how motorcycle clubs can make a difference.',
-    content: 'Full article content here...',
-    blogURL: '',
-    author: {
-      name: 'Miguel Rodriguez',
-      avatar: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=150',
-      bio: 'Urban Forestry Expert',
-    },
-    date: '2024-12-05',
-    tags: ['Tree Planting', 'Urban Forestry', 'Community'],
-    image: 'https://images.pexels.com/photos/1005648/pexels-photo-1005648.jpeg?auto=compress&cs=tinysrgb&w=600',
-    readTime: '6 min read',
-    featured: false,
-    status: 'published',
-    category: 'Education',
-  },
-  {
-    id: 3,
-    title: 'Building Global Communities Through Shared Purpose',
-    excerpt: 'How Save Earth Ride has connected riders from different cultures and backgrounds through environmental activism.',
-    content: 'Full article content here...',
-    blogURL: '',
-    author: {
-      name: 'Priya Patel',
-      avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150',
-      bio: 'Community Organizer',
-    },
-    date: '2024-11-28',
-    tags: ['Community', 'Global', 'Activism'],
-    image: 'https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=600',
-    readTime: '5 min read',
-    featured: false,
-    status: 'draft',
-    category: 'Community',
-  },
-];
+interface BlogPost {
+  id: number;
+  title: string;
+  excerpt: string;
+  content: string;
+  blogURL: string;
+  authorName: string;
+  authorBio: string;
+  authorAvatar: string;
+  tags: string[];
+  image: string;
+  readTime: string;
+  featured: boolean;
+  status: 'draft' | 'published' | 'archived';
+  category: string;
+  date: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export default function AdminBlogPage() {
-  const [blogData, setBlogData] = useState(initialBlogData);
-  const [editingItem, setEditingItem] = useState<any>(null);
+  const [blogData, setBlogData] = useState<BlogPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingItem, setEditingItem] = useState<BlogPost | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -96,7 +57,7 @@ export default function AdminBlogPage() {
     image: '',
     readTime: '',
     featured: false,
-    status: 'draft',
+    status: 'draft' as 'draft' | 'published' | 'archived',
     category: '',
     date: new Date().toISOString().split('T')[0]
   });
@@ -104,79 +65,128 @@ export default function AdminBlogPage() {
   const categories = ['Environment', 'Education', 'Community', 'Technology', 'Safety', 'Conservation'];
   const statuses = ['draft', 'published', 'archived'];
 
-  // Load data from Excel on component mount
+  // Load data from Google Sheets on component mount
   useEffect(() => {
-    loadDataFromExcel();
+    loadBlogData();
   }, []);
 
-  // Load data from Excel file
-  const loadDataFromExcel = () => {
+  // Load data from Google Sheets
+  const loadBlogData = async () => {
     try {
-      const savedData = localStorage.getItem('blogData');
-      if (savedData) {
-        setBlogData(JSON.parse(savedData));
+      setLoading(true);
+      const response = await fetch('/api/blog');
+      const result = await response.json();
+      
+      if (result.success) {
+        setBlogData(result.data);
+      } else {
+        toast.error('Failed to load blog data');
+        console.error('Error loading blog data:', result.error);
       }
     } catch (error) {
+      toast.error('Failed to load blog data');
       console.error('Error loading blog data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Save data to Excel and localStorage
-  const saveDataToExcel = (data: any[]) => {
+  // Save data to Google Sheets
+  const saveBlogData = async (data: BlogPost[]) => {
     try {
-      // Save to localStorage for persistence
-      localStorage.setItem('blogData', JSON.stringify(data));
+      setSaving(true);
+      const response = await fetch('/api/blog', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ blogs: data }),
+      });
+
+      const result = await response.json();
       
-      // Export to Excel
-      const ws = XLSX.utils.json_to_sheet(data.map(item => ({
-        ...item,
-        author: JSON.stringify(item.author),
-        tags: Array.isArray(item.tags) ? item.tags.join(', ') : item.tags
-      })));
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Blog');
-      XLSX.writeFile(wb, `blog_data_${new Date().toISOString().split('T')[0]}.xlsx`);
-      
-      toast.success('Blog data saved to Excel!');
+      if (result.success) {
+        toast.success(`Blog data saved! Updated: ${result.updated}, Added: ${result.added}`);
+        
+        // Trigger real-time update
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('adminDataUpdate', { 
+            detail: { section: 'blog', data: data } 
+          }));
+        }
+      } else {
+        toast.error('Failed to save blog data');
+        console.error('Error saving blog data:', result.error);
+      }
     } catch (error) {
-      console.error('Error saving blog data:', error);
       toast.error('Failed to save blog data');
+      console.error('Error saving blog data:', error);
+    } finally {
+      setSaving(false);
     }
   };
 
-  // Real-time update function
-  const updateBlogData = (newData: any[]) => {
-    setBlogData(newData);
-    saveDataToExcel(newData);
-    
-    // Trigger real-time update
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('adminDataUpdate', { 
-        detail: { section: 'blog', data: newData } 
+  // Export data to Excel
+  const exportToExcel = () => {
+    try {
+      const exportData = blogData.map(item => ({
+        ID: item.id,
+        Title: item.title,
+        Excerpt: item.excerpt,
+        Content: item.content,
+        'Blog URL': item.blogURL,
+        'Author Name': item.authorName,
+        'Author Bio': item.authorBio,
+        'Author Avatar': item.authorAvatar,
+        Tags: Array.isArray(item.tags) ? item.tags.join(', ') : item.tags,
+        Image: item.image,
+        'Read Time': item.readTime,
+        Featured: item.featured ? 'Yes' : 'No',
+        Status: item.status,
+        Category: item.category,
+        Date: item.date,
+        'Created At': item.createdAt,
+        'Updated At': item.updatedAt,
       }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Blog Posts');
+      XLSX.writeFile(wb, `blog_posts_${new Date().toISOString().split('T')[0]}.xlsx`);
+      
+      toast.success('Blog data exported to Excel!');
+    } catch (error) {
+      console.error('Error exporting blog data:', error);
+      toast.error('Failed to export blog data');
     }
   };
 
   // Add new blog post
-  const handleAdd = () => {
-    if (!formData.title || !formData.excerpt || !formData.content) {
+  const handleAdd = async () => {
+    if (!formData.title || !formData.excerpt || !formData.content || !formData.blogURL) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    const newItem = {
+    // Validate URL
+    try {
+      new URL(formData.blogURL);
+    } catch {
+      toast.error('Please enter a valid blog URL');
+      return;
+    }
+
+    const newItem: BlogPost = {
       id: Date.now(),
       ...formData,
-      author: {
-        name: formData.authorName,
-        bio: formData.authorBio,
-        avatar: formData.authorAvatar
-      },
-      tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
+      tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     const updatedData = [...blogData, newItem];
-    updateBlogData(updatedData);
+    setBlogData(updatedData);
+    await saveBlogData(updatedData);
     
     resetForm();
     setIsAddingNew(false);
@@ -184,16 +194,16 @@ export default function AdminBlogPage() {
   };
 
   // Edit blog post
-  const handleEdit = (item: any) => {
+  const handleEdit = (item: BlogPost) => {
     setEditingItem(item);
     setFormData({
       title: item.title,
       excerpt: item.excerpt,
       content: item.content,
       blogURL: item.blogURL,
-      authorName: item.author.name,
-      authorBio: item.author.bio,
-      authorAvatar: item.author.avatar,
+      authorName: item.authorName,
+      authorBio: item.authorBio,
+      authorAvatar: item.authorAvatar,
       tags: Array.isArray(item.tags) ? item.tags.join(', ') : item.tags,
       image: item.image,
       readTime: item.readTime,
@@ -205,38 +215,58 @@ export default function AdminBlogPage() {
   };
 
   // Update blog post
-  const handleUpdate = () => {
-    if (!formData.title || !formData.excerpt || !formData.content) {
+  const handleUpdate = async () => {
+    if (!formData.title || !formData.excerpt || !formData.content || !formData.blogURL) {
       toast.error('Please fill in all required fields');
       return;
     }
 
+    // Validate URL
+    try {
+      new URL(formData.blogURL);
+    } catch {
+      toast.error('Please enter a valid blog URL');
+      return;
+    }
+
     const updatedData = blogData.map(item => 
-      item.id === editingItem.id 
+      item.id === editingItem?.id 
         ? {
             ...item,
             ...formData,
-            author: {
-              name: formData.authorName,
-              bio: formData.authorBio,
-              avatar: formData.authorAvatar
-            },
-            tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
+            tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+            updatedAt: new Date().toISOString(),
           }
         : item
     );
 
-    updateBlogData(updatedData);
+    setBlogData(updatedData);
+    await saveBlogData(updatedData);
     setEditingItem(null);
     resetForm();
     toast.success('Blog post updated successfully!');
   };
 
   // Delete blog post
-  const handleDelete = (id: number) => {
-    const updatedData = blogData.filter(item => item.id !== id);
-    updateBlogData(updatedData);
-    toast.success('Blog post deleted successfully!');
+  const handleDelete = async (id: number) => {
+    try {
+      const response = await fetch(`/api/blog?id=${id}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        const updatedData = blogData.filter(item => item.id !== id);
+        setBlogData(updatedData);
+        toast.success('Blog post deleted successfully!');
+      } else {
+        toast.error('Failed to delete blog post');
+      }
+    } catch (error) {
+      toast.error('Failed to delete blog post');
+      console.error('Error deleting blog post:', error);
+    }
   };
 
   // Reset form
@@ -264,6 +294,18 @@ export default function AdminBlogPage() {
     }
   };
 
+  if(loading){
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Loading blog data...</p>
+        </div>
+      </div>
+    );
+  }
+
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
@@ -290,7 +332,7 @@ export default function AdminBlogPage() {
             </div>
           </div>
           <div className="flex items-center space-x-3">
-            <Button onClick={() => saveDataToExcel(blogData)} variant="outline">
+            <Button onClick={() => saveBlogData(blogData)} variant="outline">
               <FileText className="h-4 w-4 mr-2" />
               Export Excel
             </Button>
@@ -357,7 +399,7 @@ export default function AdminBlogPage() {
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-purple-700">
-                    {new Set(blogData.map(item => item.author.name)).size}
+                    {new Set(blogData.map(item => item.authorName)).size}
                   </div>
                   <div className="text-sm text-purple-600">Authors</div>
                 </div>
@@ -436,7 +478,7 @@ export default function AdminBlogPage() {
                               </div>
                               <div className="flex items-center space-x-1">
                                 <User className="h-4 w-4" />
-                                <span>{item.author.name}</span>
+                                <span>{item.authorName}</span>
                               </div>
                               <Badge className={getStatusColor(item.status)}>
                                 {item.status}
@@ -610,7 +652,7 @@ export default function AdminBlogPage() {
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="status">Status</Label>
-                  <Select onValueChange={(value) => setFormData({...formData, status: value})}>
+                  <Select onValueChange={(value) => setFormData({...formData, status: value as 'draft' | 'published' | 'archived'})}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>

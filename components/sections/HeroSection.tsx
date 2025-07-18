@@ -7,37 +7,64 @@ import Link from 'next/link';
 
 export function HeroSection() {
   const [treeCount, setTreeCount] = useState(0);
-  const [targetCount, setTargetCount] = useState(25847);
+  const [targetCount, setTargetCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch tree count from Google Sheets via API
+  const fetchTreeCount = async () => {
+    try {
+      const response = await fetch('/api/dashboard');
+      const result = await response.json();
+      
+      if (result.success && result.data.treeCount) {
+        setTargetCount(result.data.treeCount.count);
+      }
+    } catch (error) {
+      console.error('Error fetching tree count:', error);
+      // Fallback to default value
+      setTargetCount(25847);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Load tree count from localStorage
-    const savedCount = localStorage.getItem('treeCount');
-    if (savedCount) {
-      setTargetCount(parseInt(savedCount));
-    }
+    // Initial fetch
+    fetchTreeCount();
 
-    // Listen for real-time updates
-    const handleUpdate = (event: CustomEvent) => {
+    // Set up polling for real-time updates every 30 seconds
+    const pollInterval = setInterval(fetchTreeCount, 30000);
+
+    // Listen for custom events from admin updates
+    const handleAdminUpdate = (event: CustomEvent) => {
       if (event.detail.section === 'treeCount') {
         setTargetCount(event.detail.data);
       }
     };
 
-    window.addEventListener('adminDataUpdate', handleUpdate as EventListener);
-    
+    window.addEventListener('adminDataUpdate', handleAdminUpdate as EventListener);
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('adminDataUpdate', handleAdminUpdate as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (targetCount === 0) return;
+
+    // Animate counter when target changes
     const timer = setInterval(() => {
       setTreeCount(prev => {
         if (prev < targetCount) {
-          return prev + Math.floor(targetCount/1000 * 10) + 150; // Much faster animation
+          const increment = Math.max(Math.floor(targetCount / 100), 50);
+          return Math.min(prev + increment, targetCount);
         }
         return targetCount;
       });
-    }, 30); // Much faster interval
+    }, 50);
 
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener('adminDataUpdate', handleUpdate as EventListener);
-    };
+    return () => clearInterval(timer);
   }, [targetCount]);
 
   return (
@@ -46,7 +73,7 @@ export function HeroSection() {
       <div 
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage: 'url(https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=1920)',
+          backgroundImage: 'linear-gradient(rgba(0, 0, 20, 0.4), rgba(0, 0, 0, 0.5)),url(https://images.pexels.com/photos/2396045/pexels-photo-2396045.jpeg?auto=compress&cs=tinysrgb&w=1920)',
         }}
       />
       <div className="absolute inset-0 backdrop-blur" />
@@ -89,11 +116,13 @@ export function HeroSection() {
             Join the global community of bikers united in protecting our planet through tree plantation and environmental awareness.
           </p>
 
-          {/* Enhanced Tree Counter with Bike Elements */}
+          {/* Enhanced Tree Counter with Google Sheets Integration */}
           <div className="flex items-center justify-center space-x-4 my-8">
             <div className="bg-white/10 backdrop-blur-sm dark:bg-gray-600/50 backdrop-blur-md rounded-2xl p-6 pulse-green relative overflow-hidden">
               <div className="absolute top-2 right-2">
-                {/* <Bike className="h-6 w-6 text-yellow-400 animate-spin" style={{ animationDuration: '3s' }} /> */}
+                {isLoading && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-400"></div>
+                )}
               </div>
               <div className="flex items-center space-x-3">
                 <TreePine className="h-8 w-8 text-green-400" />
@@ -102,6 +131,9 @@ export function HeroSection() {
                     {treeCount.toLocaleString()}
                   </div>
                   <div className="text-sm text-gray-200">Trees Planted by Riders</div>
+                  {/* <div className="text-xs text-gray-300 mt-1">
+                    Live count from Google Sheets
+                  </div> */}
                 </div>
               </div>
             </div>
@@ -153,7 +185,7 @@ export function HeroSection() {
                 <TreePine className="h-5 w-5 text-green-400" />
                 {/* <Bike className="h-4 w-4 text-blue-400" /> */}
               </div>
-              <div className="text-2xl font-bold">25K+</div>
+              <div className="text-2xl font-bold">{Math.floor(treeCount / 1000)}K+</div>
               <div className="text-sm text-gray-200">Trees</div>
             </div>
           </div>

@@ -57,21 +57,44 @@ export default function AdminManagementPage() {
 
   // Load data from localStorage on component mount
   useEffect(() => {
-    loadDataFromStorage();
+    loadDataFromServer();
   }, []);
 
   // Load data from localStorage
-  const loadDataFromStorage = () => {
-    try {
-      const savedData = localStorage.getItem('adminData');
-      if (savedData) {
-        setAdminData(JSON.parse(savedData));
-      }
+  const loadDataFromServer = async () => {
+    // try {
+    //   const savedData = localStorage.getItem('adminData');
+    //   if (savedData) {
+    //     setAdminData(JSON.parse(savedData));
+    //   }
+    // } catch (error) {
+    //   console.error('Error loading admin data:', error);
+    // }
+    try{
+      const res = await fetch('/api/admins');
+      const json = await res.json();
+      setAdminData(json.data);
     } catch (error) {
-      console.error('Error loading admin data:', error);
+      toast.error('Failed to load admin');
+      console.error(error);
     }
   };
-
+  
+  const saveDataToServer = async (data: any[]) => {
+    try{
+      console.log("RUNNING THE SAVE DATA TO SERVER ");
+      await fetch('/api/admins',{
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      toast.success('Admin data saved!');
+    } catch (error) {
+      console.error('Error saving:', error);
+      toast.error('Failed to save admin data');
+    }
+  }
+  
   // Save data to file and localStorage
   const saveDataToFile = (data: any[]) => {
     try {
@@ -108,8 +131,9 @@ export default function AdminManagementPage() {
 
   // Real-time update function
   const updateAdminData = (newData: any[]) => {
+    console.log("RUNNING THE UPDATE ADMIN DATA TO SERVER ");
     setAdminData(newData);
-    saveDataToFile(newData);
+    saveDataToServer(newData);
     
     // Trigger real-time update
     if (typeof window !== 'undefined') {
@@ -121,14 +145,17 @@ export default function AdminManagementPage() {
 
   // Add new admin
   const handleAdd = () => {
+    console.log("RUNNING THE ADDING FUNCTION ");
     if (!formData.username || !formData.email || !formData.password) {
       toast.error('Please fill in all required fields');
+      console.log("RUNNING THE ADDING 1 FUNCTION ");
       return;
     }
 
     // Check if username already exists
     if (adminData.some(admin => admin.username === formData.username)) {
       toast.error('Username already exists');
+      console.log("RUNNING THE ADDING 2 FUNCTION ");
       return;
     }
 
@@ -140,6 +167,7 @@ export default function AdminManagementPage() {
     };
 
     const updatedData = [...adminData, newItem];
+    console.log("RUNNING THE update 3 FUNCTION ");
     updateAdminData(updatedData);
     
     resetForm();
@@ -161,6 +189,7 @@ export default function AdminManagementPage() {
 
   // Update admin
   const handleUpdate = () => {
+    console.log("RUNNING THE UPDATE FUNCTION TO SERVER ");
     if (!formData.username || !formData.email || !formData.password) {
       toast.error('Please fill in all required fields');
       return;
@@ -250,7 +279,7 @@ export default function AdminManagementPage() {
             </div>
           </div>
           <div className="flex items-center space-x-3">
-            <Button onClick={() => saveDataToFile(adminData)} variant="outline">
+            <Button onClick={() => saveDataToServer(adminData)} variant="outline">
               <Shield className="h-4 w-4 mr-2" />
               Export Data
             </Button>

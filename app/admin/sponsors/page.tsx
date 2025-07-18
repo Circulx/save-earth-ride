@@ -93,44 +93,79 @@ export default function AdminSponsorsPage() {
 
   // Load data from Excel on component mount
   useEffect(() => {
-    loadDataFromExcel();
+    loadDataFromGoogleSheets();
   }, []);
 
-  // Load data from Excel file
-  const loadDataFromExcel = () => {
+  // Load data from Google Sheets
+  const loadDataFromGoogleSheets = async () => {
     try {
-      const savedData = localStorage.getItem('sponsorsData');
-      if (savedData) {
-        setSponsorsData(JSON.parse(savedData));
+      const response = await fetch('/api/sponsors');
+      const result = await response.json();
+      
+      if (result.success) {
+        setSponsorsData(result.data);
+      } else {
+        console.error('Error loading sponsors data:', result.error);
+        toast.error('Failed to load sponsors data');
       }
     } catch (error) {
       console.error('Error loading sponsors data:', error);
+      toast.error('Failed to load sponsors data');
     }
   };
 
-  // Save data to Excel and localStorage
-  const saveDataToExcel = (data: any[]) => {
+  // Save data to Google Sheets
+  const saveDataToGoogleSheets = async (data: any[]) => {
     try {
-      // Save to localStorage for persistence
-      localStorage.setItem('sponsorsData', JSON.stringify(data));
+      const response = await fetch('/api/sponsors', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'bulk_save',
+          data: data
+        })
+      });
+
+      const result = await response.json();
       
-      // Export to Excel
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Sponsors');
-      XLSX.writeFile(wb, `sponsors_data_${new Date().toISOString().split('T')[0]}.xlsx`);
-      
-      toast.success('Sponsors data saved to Excel!');
+      if (result.success) {
+        toast.success('Sponsors data saved to Google Sheets!');
+      } else {
+        throw new Error(result.error);
+      }
     } catch (error) {
       console.error('Error saving sponsors data:', error);
       toast.error('Failed to save sponsors data');
     }
   };
 
-  // Real-time update function
-  const updateSponsorsData = (newData: any[]) => {
+  // Export to Excel (now gets data from Google Sheets)
+  const exportToExcel = async () => {
+    try {
+      const response = await fetch('/api/sponsors');
+      const result = await response.json();
+      
+      if (result.success) {
+        const ws = XLSX.utils.json_to_sheet(result.data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Sponsors');
+        XLSX.writeFile(wb, `sponsors_data_${new Date().toISOString().split('T')[0]}.xlsx`);
+        toast.success('Sponsors data exported to Excel!');
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error exporting sponsors data:', error);
+      toast.error('Failed to export sponsors data');
+    }
+  };
+
+  // Real-time update function (now uses Google Sheets)
+  const updateSponsorsData = async (newData: any[]) => {
     setSponsorsData(newData);
-    saveDataToExcel(newData);
+    await saveDataToGoogleSheets(newData);
     
     // Trigger real-time update
     if (typeof window !== 'undefined') {
@@ -140,28 +175,118 @@ export default function AdminSponsorsPage() {
     }
   };
 
-  // Add new sponsor/partner
-  const handleAdd = () => {
+  // Add new sponsor/partner (now uses API)
+  const handleAdd = async () => {
     if (!formData.name || !formData.description || !formData.contribution) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    const newItem = {
-      id: Date.now(),
-      ...formData,
-      amount: parseFloat(formData.amount) || 0
-    };
+    try {
+      const response = await fetch('/api/sponsors', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'add',
+          data: {
+            ...formData,
+            amount: parseFloat(formData.amount) || 0
+          }
+        })
+      });
 
-    const updatedData = [...sponsorsData, newItem];
-    updateSponsorsData(updatedData);
-    
-    resetForm();
-    setIsAddingNew(false);
-    toast.success(`${formData.type === 'sponsor' ? 'Sponsor' : 'Partner'} added successfully!`);
+      const result = await response.json();
+      
+      if (result.success) {
+        const updatedData = [...sponsorsData, result.data];
+        setSponsorsData(updatedData);
+        
+        resetForm();
+        setIsAddingNew(false);
+        toast.success(`${formData.type === 'sponsor' ? 'Sponsor' : 'Partner'} added successfully!`);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error adding sponsor:', error);
+      toast.error('Failed to add sponsor');
+    }
   };
 
-  // Edit sponsor/partner
+  // Update sponsor/partner (now uses API)
+  const handleUpdate = async () => {
+    if (!formData.name || !formData.description || !formData.contribution) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/sponsors', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'update',
+          data: {
+            id: editingItem.id,
+            ...formData,
+            amount: parseFloat(formData.amount) || 0
+          }
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        const updatedData = sponsorsData.map(item => 
+          item.id === editingItem.id ? result.data : item
+        );
+        setSponsorsData(updatedData);
+        
+        setEditingItem(null);
+        resetForm();
+        toast.success(`${formData.type === 'sponsor' ? 'Sponsor' : 'Partner'} updated successfully!`);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error updating sponsor:', error);
+      toast.error('Failed to update sponsor');
+    }
+  };
+
+  // Delete sponsor/partner (now uses API)
+  const handleDelete = async (id: number) => {
+    try {
+      const response = await fetch('/api/sponsors', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'delete',
+          data: { id }
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        const updatedData = sponsorsData.filter(item => item.id !== id);
+        setSponsorsData(updatedData);
+        toast.success('Item deleted successfully!');
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error deleting sponsor:', error);
+      toast.error('Failed to delete sponsor');
+    }
+  };
+
   const handleEdit = (item: any) => {
     setEditingItem(item);
     setFormData({
@@ -178,36 +303,6 @@ export default function AdminSponsorsPage() {
       amount: item.amount.toString(),
       type: item.type
     });
-  };
-
-  // Update sponsor/partner
-  const handleUpdate = () => {
-    if (!formData.name || !formData.description || !formData.contribution) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    const updatedData = sponsorsData.map(item => 
-      item.id === editingItem.id 
-        ? {
-            ...item,
-            ...formData,
-            amount: parseFloat(formData.amount) || 0
-          }
-        : item
-    );
-
-    updateSponsorsData(updatedData);
-    setEditingItem(null);
-    resetForm();
-    toast.success(`${formData.type === 'sponsor' ? 'Sponsor' : 'Partner'} updated successfully!`);
-  };
-
-  // Delete sponsor/partner
-  const handleDelete = (id: number) => {
-    const updatedData = sponsorsData.filter(item => item.id !== id);
-    updateSponsorsData(updatedData);
-    toast.success('Item deleted successfully!');
   };
 
   // Reset form
@@ -272,7 +367,7 @@ export default function AdminSponsorsPage() {
             </div>
           </div>
           <div className="flex items-center space-x-3">
-            <Button onClick={() => saveDataToExcel(sponsorsData)} variant="outline">
+            <Button onClick={() => exportToExcel} variant="outline">
               <Building className="h-4 w-4 mr-2" />
               Export Excel
             </Button>

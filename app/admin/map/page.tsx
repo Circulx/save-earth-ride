@@ -11,61 +11,33 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { 
   MapPin, Plus, Edit, Trash2, Save, X, Calendar, Users, TreePine,
-  ArrowLeft, Bike, Navigation, Globe
+  ArrowLeft, Bike, Navigation, Globe, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
-// Initial map data
-const initialMapData = [
-  {
-    id: 1,
-    name: 'Himalayan Tree Drive',
-    location: 'Kathmandu, Nepal',
-    coordinates: { lat: 27.7172, lng: 85.3240 },
-    date: '2024-12-15',
-    type: 'Tree Planting',
-    participants: 200,
-    treesPlanted: 1000,
-    description: 'Epic high-altitude ride through the Himalayas, planting native trees to combat deforestation in the region.',
-    image: 'https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=300',
-    organizer: 'Nepal Riders Club',
-    status: 'completed'
-  },
-  {
-    id: 2,
-    name: 'Pacific Coast Green Ride',
-    location: 'Sydney, Australia',
-    coordinates: { lat: -33.8688, lng: 151.2093 },
-    date: '2024-11-20',
-    type: 'Beach Cleanup',
-    participants: 350,
-    treesPlanted: 800,
-    description: 'Coastal ride combined with beach cleanup and mangrove planting along the Pacific Coast.',
-    image: 'https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=300',
-    organizer: 'Aussie Green Riders',
-    status: 'completed'
-  },
-  {
-    id: 3,
-    name: 'European Unity Ride',
-    location: 'Berlin, Germany',
-    coordinates: { lat: 52.5200, lng: 13.4050 },
-    date: '2025-01-15',
-    type: 'Awareness',
-    participants: 1200,
-    treesPlanted: 3000,
-    description: 'Cross-border ride connecting 12 European countries, promoting unity in environmental action.',
-    image: 'https://images.pexels.com/photos/1005648/pexels-photo-1005648.jpeg?auto=compress&cs=tinysrgb&w=300',
-    organizer: 'European Eco Riders',
-    status: 'upcoming'
-  }
-];
+interface MapItem {
+  id: number;
+  name: string;
+  location: string;
+  coordinates: { lat: number; lng: number };
+  date: string;
+  type: string;
+  participants: number;
+  treesPlanted: number;
+  description: string;
+  image: string;
+  organizer: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export default function AdminMapPage() {
-  const [mapData, setMapData] = useState(initialMapData);
-  const [editingItem, setEditingItem] = useState<any>(null);
+  const [mapData, setMapData] = useState<MapItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingItem, setEditingItem] = useState<MapItem | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -97,30 +69,34 @@ export default function AdminMapPage() {
 
   const statuses = ['upcoming', 'ongoing', 'completed', 'cancelled'];
 
-  // Load data from Excel on component mount
+  // Load data from API on component mount
   useEffect(() => {
-    loadDataFromExcel();
+    loadMapData();
   }, []);
 
-  // Load data from Excel file
-  const loadDataFromExcel = () => {
+  // Load data from API
+  const loadMapData = async () => {
     try {
-      const savedData = localStorage.getItem('mapData');
-      if (savedData) {
-        setMapData(JSON.parse(savedData));
+      setLoading(true);
+      const response = await fetch('/api/map');
+      const result = await response.json();
+      
+      if (result.success) {
+        setMapData(result.data);
+      } else {
+        toast.error('Failed to load map data');
       }
     } catch (error) {
       console.error('Error loading map data:', error);
+      toast.error('Failed to load map data');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Save data to Excel and localStorage
-  const saveDataToExcel = (data: any[]) => {
+  // Save data to Excel for backup
+  const saveDataToExcel = (data: MapItem[]) => {
     try {
-      // Save to localStorage for persistence
-      localStorage.setItem('mapData', JSON.stringify(data));
-      
-      // Export to Excel
       const ws = XLSX.utils.json_to_sheet(data.map(item => ({
         ...item,
         coordinates: `${item.coordinates.lat}, ${item.coordinates.lng}`
@@ -129,57 +105,60 @@ export default function AdminMapPage() {
       XLSX.utils.book_append_sheet(wb, ws, 'Map');
       XLSX.writeFile(wb, `map_data_${new Date().toISOString().split('T')[0]}.xlsx`);
       
-      toast.success('Map data saved to Excel!');
+      toast.success('Map data exported to Excel!');
     } catch (error) {
       console.error('Error saving map data:', error);
-      toast.error('Failed to save map data');
-    }
-  };
-
-  // Real-time update function
-  const updateMapData = (newData: any[]) => {
-    setMapData(newData);
-    
-    // Save to localStorage for user-side access
-    localStorage.setItem('mapData', JSON.stringify(newData));
-    saveDataToExcel(newData);
-    
-    // Trigger real-time update
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('adminDataUpdate', { 
-        detail: { section: 'mapLocations', data: newData } 
-      }));
+      toast.error('Failed to export map data');
     }
   };
 
   // Add new map location
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!formData.name || !formData.location || !formData.latitude || !formData.longitude) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    const newItem = {
-      id: Date.now(),
-      ...formData,
-      coordinates: { 
-        lat: parseFloat(formData.latitude), 
-        lng: parseFloat(formData.longitude) 
-      },
-      participants: parseInt(formData.participants) || 0,
-      treesPlanted: parseInt(formData.treesPlanted) || 0
-    };
+    try {
+      const newItem = {
+        ...formData,
+        coordinates: { 
+          lat: parseFloat(formData.latitude), 
+          lng: parseFloat(formData.longitude) 
+        },
+        participants: parseInt(formData.participants) || 0,
+        treesPlanted: parseInt(formData.treesPlanted) || 0
+      };
 
-    const updatedData = [...mapData, newItem];
-    updateMapData(updatedData);
-    
-    resetForm();
-    setIsAddingNew(false);
-    toast.success('Map location added successfully!');
+      const response = await fetch('/api/map', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'add',
+          data: newItem
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        await loadMapData(); // Refresh data from server
+        resetForm();
+        setIsAddingNew(false);
+        toast.success('Map location added successfully!');
+      } else {
+        toast.error('Failed to add map location');
+      }
+    } catch (error) {
+      console.error('Error adding map location:', error);
+      toast.error('Failed to add map location');
+    }
   };
 
   // Edit map location
-  const handleEdit = (item: any) => {
+  const handleEdit = (item: MapItem) => {
     setEditingItem(item);
     setFormData({
       name: item.name,
@@ -198,38 +177,81 @@ export default function AdminMapPage() {
   };
 
   // Update map location
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     if (!formData.name || !formData.location || !formData.latitude || !formData.longitude) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    const updatedData = mapData.map(item => 
-      item.id === editingItem.id 
-        ? {
-            ...item,
-            ...formData,
-            coordinates: { 
-              lat: parseFloat(formData.latitude), 
-              lng: parseFloat(formData.longitude) 
-            },
-            participants: parseInt(formData.participants) || 0,
-            treesPlanted: parseInt(formData.treesPlanted) || 0
-          }
-        : item
-    );
+    try {
+      const updatedItem = {
+        ...editingItem,
+        ...formData,
+        coordinates: { 
+          lat: parseFloat(formData.latitude), 
+          lng: parseFloat(formData.longitude) 
+        },
+        participants: parseInt(formData.participants) || 0,
+        treesPlanted: parseInt(formData.treesPlanted) || 0
+      };
 
-    updateMapData(updatedData);
-    setEditingItem(null);
-    resetForm();
-    toast.success('Map location updated successfully!');
+      const response = await fetch('/api/map', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'update',
+          data: updatedItem
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        await loadMapData(); // Refresh data from server
+        setEditingItem(null);
+        resetForm();
+        toast.success('Map location updated successfully!');
+      } else {
+        toast.error('Failed to update map location');
+      }
+    } catch (error) {
+      console.error('Error updating map location:', error);
+      toast.error('Failed to update map location');
+    }
   };
 
   // Delete map location
-  const handleDelete = (id: number) => {
-    const updatedData = mapData.filter(item => item.id !== id);
-    updateMapData(updatedData);
-    toast.success('Map location deleted successfully!');
+  const handleDelete = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this map location?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/map', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'delete',
+          data: { id }
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        await loadMapData(); // Refresh data from server
+        toast.success('Map location deleted successfully!');
+      } else {
+        toast.error('Failed to delete map location');
+      }
+    } catch (error) {
+      console.error('Error deleting map location:', error);
+      toast.error('Failed to delete map location');
+    }
   };
 
   // Reset form

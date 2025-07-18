@@ -10,82 +10,31 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { 
   Camera, Plus, Edit, Trash2, Save, X, MapPin, Calendar,
-  ArrowLeft, Bike, Image as ImageIcon, Filter
+  ArrowLeft, Bike, Image as ImageIcon, Filter, Upload, RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import * as XLSX from 'xlsx';
 
-// Initial gallery data
-const initialGalleryData = [
-  {
-    id: 1,
-    image: 'https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=500',
-    title: 'Himalayan Tree Drive',
-    location: 'Nepal',
-    city: 'Kathmandu',
-    year: '2024',
-    tags: ['Tree Planting', 'Mountain Ride'],
-    description: 'Epic ride through the Himalayas with 200 trees planted',
-  },
-  {
-    id: 2,
-    image: 'https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=500',
-    title: 'Coastal Conservation Ride',
-    location: 'Australia',
-    city: 'Sydney',
-    year: '2024',
-    tags: ['Beach Cleanup', 'Conservation'],
-    description: 'Coastal cleanup and tree planting along the Pacific Coast',
-  },
-  {
-    id: 3,
-    image: 'https://images.pexels.com/photos/1005648/pexels-photo-1005648.jpeg?auto=compress&cs=tinysrgb&w=500',
-    title: 'Forest Restoration Project',
-    location: 'Canada',
-    city: 'Vancouver',
-    year: '2023',
-    tags: ['Reforestation', 'Group Ride'],
-    description: 'Massive reforestation effort with local communities',
-  },
-  {
-    id: 4,
-    image: 'https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=500',
-    title: 'Desert Oasis Initiative',
-    location: 'UAE',
-    city: 'Dubai',
-    year: '2023',
-    tags: ['Desert Ride', 'Oasis Creation'],
-    description: 'Creating green oases in the desert landscape',
-  },
-  {
-    id: 5,
-    image: 'https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=500',
-    title: 'Amazon Conservation Ride',
-    location: 'Brazil',
-    city: 'Manaus',
-    year: '2024',
-    tags: ['Amazon', 'Conservation'],
-    description: 'Protecting the lungs of the Earth through awareness rides',
-  },
-  {
-    id: 6,
-    image: 'https://images.pexels.com/photos/1005648/pexels-photo-1005648.jpeg?auto=compress&cs=tinysrgb&w=500',
-    title: 'Urban Green Initiative',
-    location: 'Japan',
-    city: 'Tokyo',
-    year: '2023',
-    tags: ['Urban Planting', 'City Ride'],
-    description: 'Bringing green spaces to urban environments',
-  },
-];
+interface GalleryItem {
+  id: number;
+  image: string;
+  title: string;
+  location: string;
+  city: string;
+  year: string;
+  tags: string[];
+  description: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export default function AdminGalleryPage() {
-  const [galleryData, setGalleryData] = useState(initialGalleryData);
-  const [editingItem, setEditingItem] = useState<any>(null);
+  const [galleryData, setGalleryData] = useState<GalleryItem[]>([]);
+  const [editingItem, setEditingItem] = useState<GalleryItem | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [filterYear, setFilterYear] = useState('all');
   const [filterCountry, setFilterCountry] = useState('all');
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     location: '',
@@ -97,95 +46,89 @@ export default function AdminGalleryPage() {
   });
 
   useEffect(() => {
-    loadDataFromStorage();
+    loadGalleryData();
   }, []);
 
-  const loadDataFromStorage = () => {
-    try{
-      const savedData = localStorage.getItem('galleryData');
-      if (savedData){
-        const parsedData = JSON.parse(savedData);
-        const validData = parsedData.filter((item: any) =>
-          item.id && item.title && item.location && item.city && item.year && item.image
-        );
-        setGalleryData(validData);
+  const loadGalleryData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/gallery');
+      const result = await response.json();
+      
+      if (result.success) {
+        setGalleryData(result.data);
+      } else {
+        toast.error('Failed to load gallery data');
       }
     } catch (error) {
-      console.error('Error loading Gallery Data from localStorage:', error);
-      toast.error('Failed to load gallery data ');
+      console.error('Error loading gallery data:', error);
+      toast.error('Failed to load gallery data');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const saveDataToFile = (data: any[]) => {
-    try{
-      localStorage.setItem('galleryData', JSON.stringify(data));
-      toast.success('Gallery data saved Successfully!'); 
+  const saveToGoogleSheets = async (action: string, data: any) => {
+    try {
+      const response = await fetch('/api/gallery', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action, data }),
+      });
 
-      const excelData = data.map(item => ({
-        ...item,
-        tags: Array.isArray(item.tags) ? item.tags.join(', ') : item.tags,
-        image: item.image || 'No Image Provided',
-        description: item.description || 'No Description Provided',
-      }));
-
-      const ws = XLSX.utils.json_to_sheet(excelData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Gallery');
-      XLSX.writeFile(wb, `gallery_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success('Gallery data exported to Excel!');
-    } catch (error) { 
-      console.error('Error saving gallery data : ', error);
-      toast.error('Failed to save gallery data');
-    }
-  }
-  // Export to Excel
-  const exportToExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(galleryData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Gallery');
-    XLSX.writeFile(wb, `gallery_${new Date().toISOString().split('T')[0]}.xlsx`);
-    toast.success('Gallery data exported to Excel!');
-  };
-
-  // Real-time update function
-  const updateGalleryData = (newData: any[]) => {
-    setGalleryData(newData);
-    saveDataToFile(newData);
-    
-    // // Save to localStorage for user-side access
-    // localStorage.setItem('galleryData', JSON.stringify(newData));
-    
-    // Trigger real-time update
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('adminDataUpdate', { 
-        detail: { section: 'gallery', data: newData } 
-      }));
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to save to Google Sheets');
+      }
+      
+      return result.data;
+    } catch (error) {
+      console.error('Error saving to Google Sheets:', error);
+      throw error;
     }
   };
 
   // Add new gallery item
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!formData.title || !formData.location || !formData.city || !formData.year) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    const newItem = {
-      id: Date.now(),
-      ...formData,
-      tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
-    };
+    try {
+      setLoading(true);
+      const newItem = {
+        ...formData,
+        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+      };
 
-    const updatedData = [...galleryData, newItem];
-    updateGalleryData(updatedData);
-    
-    resetForm();
-    setIsAddingNew(false);
-    toast.success('Gallery item added successfully!');
+      const savedItem = await saveToGoogleSheets('add', newItem);
+      
+      // Update local state
+      setGalleryData(prev => [...prev, savedItem]);
+      
+      resetForm();
+      setIsAddingNew(false);
+      toast.success('Gallery item added successfully!');
+      
+      // Trigger real-time update for website
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('adminDataUpdate', { 
+          detail: { section: 'gallery', data: [...galleryData, savedItem] } 
+        }));
+      }
+    } catch (error) {
+      toast.error('Failed to add gallery item');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Edit gallery item
-  const handleEdit = (item: any) => {
+  const handleEdit = (item: GalleryItem) => {
     setEditingItem(item);
     setFormData({
       title: item.title,
@@ -199,42 +142,79 @@ export default function AdminGalleryPage() {
   };
 
   // Update gallery item
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     if (!formData.title || !formData.location || !formData.city || !formData.year) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    const updatedData = galleryData.map(item => 
-      item.id === editingItem.id 
-        ? {
-            ...item,
-            ...formData,
-            tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
-          }
-        : item
-    );
+    try {
+      setLoading(true);
+      const updatedItem = {
+        ...editingItem,
+        ...formData,
+        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
+      };
 
-    updateGalleryData(updatedData);
-    setEditingItem(null);
-    resetForm();
-    toast.success('Gallery item updated successfully!');
+      const savedItem = await saveToGoogleSheets('update', updatedItem);
+      
+      // Update local state
+      setGalleryData(prev => prev.map(item => 
+        item.id === editingItem!.id ? savedItem : item
+      ));
+
+      setEditingItem(null);
+      resetForm();
+      toast.success('Gallery item updated successfully!');
+      
+      // Trigger real-time update for website
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('adminDataUpdate', { 
+          detail: { section: 'gallery', data: galleryData.map(item => 
+            item.id === editingItem!.id ? savedItem : item
+          ) } 
+        }));
+      }
+    } catch (error) {
+      toast.error('Failed to update gallery item');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Delete gallery item
-  const handleDelete = (id: number) => {
-    if (!confirm('are you sure you want to delete this gallery item ?')) return;
 
-    const updatedData = galleryData.filter(item => item.id !== id);
-    updateGalleryData(updatedData);
-    toast.success('Gallery item deleted successfully!');
+  const handleDelete = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this gallery item?')) return;
+
+    try {
+      setLoading(true);
+      await saveToGoogleSheets('delete', { id });
+      
+      // Update local state
+      const updatedData = galleryData.filter(item => item.id !== id);
+      setGalleryData(updatedData);
+      
+      toast.success('Gallery item deleted successfully!');
+      
+      // Trigger real-time update for website
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('adminDataUpdate', { 
+          detail: { section: 'gallery', data: updatedData } 
+        }));
+      }
+    } catch (error) {
+      toast.error('Failed to delete gallery item');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const resetForm = () => {
     setFormData({
       title: '', location: '', city: '', year: '', tags: '', description: '', image: ''
     });
-  }
+  };
 
   // Filter data
   const filteredData = galleryData.filter(item => {
@@ -245,7 +225,6 @@ export default function AdminGalleryPage() {
 
   const years = [...new Set(galleryData.map(item => item.year))];
   const countries = [...new Set(galleryData.map(item => item.location))];
-
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
@@ -272,11 +251,11 @@ export default function AdminGalleryPage() {
             </div>
           </div>
           <div className="flex items-center space-x-3">
-            <Button onClick={() => saveDataToFile(galleryData)} variant="outline">
-              <ImageIcon className="h-4 w-4 mr-2" />
-              Export Excel
+            <Button onClick={loadGalleryData} variant="outline" disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
             </Button>
-            <Button onClick={() => setIsAddingNew(true)}>
+            <Button onClick={() => setIsAddingNew(true)} disabled={loading}>
               <Plus className="h-4 w-4 mr-2" />
               Add Photo
             </Button>
