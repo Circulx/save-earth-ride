@@ -137,7 +137,7 @@ export function GalleryImage({
 
   if (imageError) {
     return (
-      <div className={${className} flex items-center justify-center bg-gray-200 dark:bg-gray-700}>
+      <div className={`${className} flex items-center justify-center bg-gray-200 dark:bg-gray-700`}>
         <div className="text-center p-8">
           <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-2" />
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -154,14 +154,14 @@ export function GalleryImage({
   return (
     <div className="relative">
       {isLoading && (
-        <div className={${className} flex items-center justify-center bg-gray-200 dark:bg-gray-700 animate-pulse}>
+        <div className={`${className} flex items-center justify-center bg-gray-200 dark:bg-gray-700 animate-pulse`}>
           <Image className="h-12 w-12 text-gray-400" />
         </div>
       )}
       <img
         src={currentSrc}
         alt={alt}
-        className={${className} ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300}
+        className={`${className} ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
         onLoad={handleImageLoad}
         onError={handleImageError}
         loading="lazy"
@@ -251,7 +251,7 @@ export default function GalleryPage() {
    */
   const getLocationDisplayName = () => {
     if (locationFilter.city && locationFilter.country) {
-      return ${locationFilter.city}, ${locationFilter.country};
+      return `${locationFilter.city}, ${locationFilter.country}`;
     } else if (locationFilter.city) {
       return locationFilter.city;
     } else if (locationFilter.country) {
