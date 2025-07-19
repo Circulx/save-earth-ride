@@ -8,7 +8,7 @@ import {
   type RegistrationData 
 } from '@/lib/registerSheetHelpers';
 
-export const dynamic='dynamic';
+export const dynamic='auto';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
