@@ -105,7 +105,7 @@ interface GalleryImageProps {
   onError?: () => void;
 }
 
-export function GalleryImage({ 
+/*export function GalleryImage({ 
   src, 
   alt, 
   className = "", 
@@ -167,7 +167,7 @@ export function GalleryImage({
         loading="lazy"
       />
     </div>
-  );}
+  );}*/
 
 export default function GalleryPage() {
   const [galleryData, setGalleryData] = useState<GalleryItem[]>([]);
