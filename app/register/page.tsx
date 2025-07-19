@@ -12,9 +12,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Users, User, Instagram, Facebook, Twitter, Bike, CheckCircle, Car } from "lucide-react"
+import { Users, User, Instagram, Facebook, Twitter, Bike, CheckCircle, Car, SortAsc } from "lucide-react"
 import { toast } from "sonner"
-import * as XLSX from "xlsx"
 
 /**
  * Registration Form Validation Schemas
@@ -31,7 +30,7 @@ const clubSchema = z.object({
   country: z.string().min(1, "Country is required"),
   city: z.string().min(1, "City is required"),
   description: z.string().min(10, "Description must be at least 10 characters"),
-  vehicleRegistrationNumber: z.string().min(1, "Vehicle registration number is required"),
+  licenceNumber: z.string().min(1, "Licence number is required"),
   website: z.string().optional(),
   instagram: z.string().optional(),
   facebook: z.string().optional(),
@@ -51,7 +50,7 @@ const individualSchema = z.object({
   city: z.string().min(1, "City is required"),
   bio: z.string().min(10, "Bio must be at least 10 characters"),
   ridingExperience: z.string().min(1, "Riding experience is required"),
-  vehicleRegistrationNumber: z.string().min(1, "Vehicle registration number is required"),
+  licenceNumber: z.string().min(1, "Licence number is required"),
   instagram: z.string().optional(),
   facebook: z.string().optional(),
   twitter: z.string().optional(),
@@ -64,93 +63,36 @@ type ClubFormData = z.infer<typeof clubSchema>
 type IndividualFormData = z.infer<typeof individualSchema>
 type FormData = ClubFormData | IndividualFormData
 
-// TypeScript interfaces for registration data
-interface RegistrationRecord {
-  id: number
-  timestamp: string
-  registrationDate: string
-  name: string
-  type: string
-  location: string
-  email: string
-  phone: string
-  status: string
-  fullData: FormData
-}
-
-interface ExcelRegistrationData {
-  "Registration ID": number
-  Date: string
-  Name: string
-  Type: string
-  Email: string
-  Phone: string
-  Location: string
-  Status: string
-  Country: string
-  City: string
-  "Vehicle Registration": string
-  "Additional Info": string
-  Experience: string
-  Website: string
-  "Social Media": string
-}
-
-const countries = [
-  "United States",
-  "Canada",
-  "United Kingdom",
-  "Australia",
-  "Germany",
-  "France",
-  "Italy",
-  "Spain",
-  "Netherlands",
-  "Brazil",
-  "India",
-  "Japan",
-  "China",
-  "South Korea",
-  "Mexico",
-  "Argentina",
-  "Colombia",
-  "Chile",
-  "Peru",
-  "South Africa",
-  "Nigeria",
-  "Egypt",
-  "Morocco",
-  "Kenya",
-  "Ghana",
-  "Russia",
-  "Poland",
-  "Czech Republic",
-  "Hungary",
-  "Romania",
-  "Greece",
-  "Turkey",
-  "Israel",
-  "UAE",
-  "Saudi Arabia",
-  "Thailand",
-  "Vietnam",
-  "Malaysia",
-  "Singapore",
-  "Philippines",
-  "Indonesia",
-  "New Zealand",
-  "Norway",
-  "Sweden",
-  "Denmark",
-  "Finland",
-  "Iceland",
-  "Ireland",
-  "Portugal",
-  "Austria",
-  "Switzerland",
-  "Belgium",
-  "Luxembourg",
-]
+const countries: string[] = [
+  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina",
+  "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados",
+  "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana",
+  "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon",
+  "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros",
+  "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia",
+  "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic",
+  "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini",
+  "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana",
+  "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras",
+  "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy",
+  "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan",
+  "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania",
+  "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands",
+  "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia",
+  "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands",
+  "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway",
+  "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru",
+  "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis",
+  "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe",
+  "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia",
+  "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain",
+  "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan",
+  "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia",
+  "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates",
+  "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City",
+  "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+];
+const sortedCountries = [...countries].sort((a, b) => a.localeCompare(b))
 
 export default function RegisterPage() {
   const [registrationType, setRegistrationType] = useState<"club" | "individual">("individual")
@@ -173,144 +115,36 @@ export default function RegisterPage() {
   const acceptTerms = watch("acceptTerms")
 
   /**
-   * Excel Storage Function for Registrations
+   * Submit Registration using the current API
    *
-   * This function saves registration data to both localStorage and Excel file.
-   * The Excel file is automatically downloaded for admin access.
-   * In production, this would be replaced with API calls to MongoDB.
-   *
-   * Features:
-   * - Automatic Excel file generation and download
-   * - Data validation and error handling
-   * - Real-time admin dashboard updates
-   * - Persistent localStorage backup
+   * This function sends registration data to the API endpoint from route.ts
+   * which handles validation and saves to Google Sheets.
    */
-  const saveRegistrationToExcel = async (data: FormData) => {
-    try {
-      // Load existing registrations from localStorage
-      const existingRegistrations: RegistrationRecord[] = JSON.parse(localStorage.getItem("registrations") || "[]")
-
-      // Create new registration record with comprehensive data
-      const newRegistration: RegistrationRecord = {
-        id: Date.now(),
-        timestamp: new Date().toISOString(),
-        registrationDate: new Date().toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }),
-        name:
-          data.type === "club"
-            ? (data as ClubFormData).clubName
-            : `${(data as IndividualFormData).firstName} ${(data as IndividualFormData).lastName}`,
-        type: data.type === "club" ? "Club" : "Individual",
-        location: `${data.city}, ${data.country}`,
-        email: data.email,
-        phone: data.phone,
-        status: "Active",
-        // Store all form data for comprehensive records
-        fullData: data,
-      }
-
-      // Add to existing registrations (newest first)
-      existingRegistrations.unshift(newRegistration)
-
-      // Keep only last 1000 registrations to prevent excessive storage
-      if (existingRegistrations.length > 1000) {
-        existingRegistrations.splice(1000)
-      }
-
-      // Save to localStorage for persistence
-      localStorage.setItem("registrations", JSON.stringify(existingRegistrations))
-
-      // Create comprehensive Excel file with all registration data
-      const excelData: ExcelRegistrationData[] = existingRegistrations.map((reg: RegistrationRecord) => ({
-        "Registration ID": reg.id,
-        Date: reg.registrationDate,
-        Name: reg.name,
-        Type: reg.type,
-        Email: reg.email,
-        Phone: reg.phone,
-        Location: reg.location,
-        Status: reg.status,
-        Country: reg.fullData?.country || "",
-        City: reg.fullData?.city || "",
-        "Vehicle Registration": reg.fullData?.vehicleRegistrationNumber || "",
-        "Additional Info":
-          reg.type === "Club"
-            ? (reg.fullData as ClubFormData)?.description || ""
-            : (reg.fullData as IndividualFormData)?.bio || "",
-        Experience: (reg.fullData as IndividualFormData)?.ridingExperience || "N/A",
-        Website: (reg.fullData as ClubFormData)?.website || "",
-        "Social Media": [
-          reg.fullData?.instagram ? `Instagram: ${reg.fullData.instagram}` : "",
-          reg.fullData?.facebook ? `Facebook: ${reg.fullData.facebook}` : "",
-          reg.fullData?.twitter ? `Twitter: ${reg.fullData.twitter}` : "",
-        ]
-          .filter(Boolean)
-          .join(", "),
-      }))
-
-      // Generate and download Excel file
-      const ws = XLSX.utils.json_to_sheet(excelData)
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, "Registrations")
-
-      // Auto-fit column widths for better readability
-      const colWidths = [
-        { wch: 15 }, // Registration ID
-        { wch: 12 }, // Date
-        { wch: 25 }, // Name
-        { wch: 10 }, // Type
-        { wch: 30 }, // Email
-        { wch: 15 }, // Phone
-        { wch: 25 }, // Location
-        { wch: 10 }, // Status
-        { wch: 15 }, // Country
-        { wch: 15 }, // City
-        { wch: 20 }, // Vehicle Registration
-        { wch: 50 }, // Additional Info
-        { wch: 15 }, // Experience
-        { wch: 25 }, // Website
-        { wch: 40 }, // Social Media
-      ]
-      ws["!cols"] = colWidths
-
-      XLSX.writeFile(wb, `registrations_${new Date().toISOString().split("T")[0]}.xlsx`)
-
-      // Update recent registrations for admin dashboard
-      const recentRegistrations: RegistrationRecord[] = existingRegistrations.slice(0, 5)
-      localStorage.setItem("recentRegistrations", JSON.stringify(recentRegistrations))
-
-      // Trigger real-time update for admin dashboard
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("adminDataUpdate", {
-            detail: { section: "registrations", data: recentRegistrations },
-          }),
-        )
-      }
-
-      return true
-    } catch (error) {
-      console.error("Error saving registration:", error)
-      throw new Error("Failed to save registration data")
-    }
-  }
-
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true)
     try {
-      // Save registration to Excel with comprehensive error handling
-      await saveRegistrationToExcel(data)
+      // Send POST request to the registration API
+      const response = await fetch('/api/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Registration failed')
+      }
 
       setIsSubmitted(true)
-      toast.success("Registration successful! Welcome to Save Earth Ride community.")
+      toast.success(result.message || "Registration successful! Welcome to Save Earth Ride community.")
 
       // Reset form for potential new registration
       reset()
     } catch (error) {
-      toast.error("Registration failed. Please try again.")
+      toast.error(error instanceof Error ? error.message : "Registration failed. Please try again.")
       console.error("Registration error:", error)
     } finally {
       setIsSubmitting(false)
@@ -332,7 +166,7 @@ export default function RegisterPage() {
               <CardContent className="p-12">
                 <div className="flex items-center justify-center space-x-3 mb-6">
                   <CheckCircle className="h-16 w-16 text-green-500" />
-                  <Bike className="h-12 w-12 text-blue-500 animate-bounce" />
+                  {/* <Bike className="h-12 w-12 text-blue-500 animate-bounce" /> */}
                 </div>
                 <h1 className="text-3xl font-bold text-foreground mb-4">Registration Successful!</h1>
                 <p className="text-xl text-muted-foreground mb-8">
@@ -372,7 +206,7 @@ export default function RegisterPage() {
           {/* Header */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center space-x-3 mb-4">
-              <Bike className="h-10 w-10 text-primary animate-bounce" />
+              {/* <Bike className="h-10 w-10 text-primary animate-bounce" /> */}
               <Users className="h-8 w-8 text-blue-600" />
             </div>
             <h1 className="text-4xl font-bold text-foreground mb-4">Join Our Community</h1>
@@ -552,6 +386,7 @@ export default function RegisterPage() {
                       {...register("phone")}
                       placeholder="Enter your phone number"
                       className="bg-background"
+                      maxLength={10}
                     />
                     {errors.phone && <p className="text-sm text-red-500">{errors.phone.message}</p>}
                   </div>
@@ -565,7 +400,7 @@ export default function RegisterPage() {
                         <SelectValue placeholder="Select your country" />
                       </SelectTrigger>
                       <SelectContent>
-                        {countries.map((country) => (
+                        {sortedCountries.map((country) => (
                           <SelectItem key={country} value={country}>
                             {country}
                           </SelectItem>
@@ -581,20 +416,20 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
-                {/* Vehicle Registration Number */}
+                {/* Licence Number */}
                 <div className="space-y-2">
-                  <Label htmlFor="vehicleRegistrationNumber" className="flex items-center space-x-2">
+                  <Label htmlFor="licenceNumber" className="flex items-center space-x-2">
                     <Car className="h-4 w-4" />
-                    <span>Vehicle Registration Number *</span>
+                    <span>Licence Number *</span>
                   </Label>
                   <Input
-                    id="vehicleRegistrationNumber"
-                    {...register("vehicleRegistrationNumber")}
-                    placeholder="Enter your vehicle registration number"
+                    id="licenceNumber"
+                    {...register("licenceNumber")}
+                    placeholder="Enter your licence number"
                     className="bg-background"
                   />
-                  {errors.vehicleRegistrationNumber && (
-                    <p className="text-sm text-red-500">{errors.vehicleRegistrationNumber.message}</p>
+                  {errors.licenceNumber && (
+                    <p className="text-sm text-red-500">{errors.licenceNumber.message}</p>
                   )}
                 </div>
 
