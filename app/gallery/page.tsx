@@ -5,119 +5,57 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Calendar, MapPin, Bike, Camera, ArrowLeft } from 'lucide-react';
+import { Calendar, MapPin, Bike, Camera, ArrowLeft, RefreshCw, AlertCircle, Image } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+interface GalleryItem {
+  id: number;
+  image: string;
+  title: string;
+  location: string;
+  city: string;
+  year: string;
+  tags: string[];
+  description: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 /**
- * Gallery Data Loader with Location Filtering
+ * API Data Loader with Location Filtering
  * 
- * Loads gallery data from admin-managed localStorage and supports filtering by location.
- * This ensures the gallery always shows the latest admin-updated content.
+ * Loads gallery data from the API endpoint and supports filtering by location.
+ * This ensures the gallery always shows the latest data from Google Sheets.
  */
-const getGalleryData = () => {
-  if (typeof window !== 'undefined') {
-    try {
-      const saved = localStorage.getItem('galleryData');
-      if (saved) {
-        const data = JSON.parse(saved);
-        // Data validation: ensure all items have required fields
-        return data.filter((item: any) => 
-          item.title && 
-          item.location && 
-          item.city && 
-          item.year && 
-          item.image
-        );
-      }
-    } catch (error) {
-      console.error('Error loading gallery data:', error);
+const getGalleryData = async (): Promise<GalleryItem[]> => {
+  try {
+    const response = await fetch('/api/gallery', {
+      cache: 'no-store' // Always fetch fresh data
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch gallery data');
     }
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      // Data validation: ensure all items have required fields
+      return result.data.filter((item: any) => 
+        item.title && 
+        item.location && 
+        item.city && 
+        item.year && 
+        item.image
+      );
+    } else {
+      throw new Error(result.error || 'Failed to load gallery data');
+    }
+  } catch (error) {
+    console.error('Error loading gallery data:', error);
+    throw error;
   }
-  
-  // Fallback data if localStorage is empty or corrupted
-  return [
-    {
-      id: 1,
-      image: 'https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=500',
-      title: 'Himalayan Tree Drive',
-      location: 'Nepal',
-      city: 'Kathmandu',
-      year: '2024',
-      tags: ['Tree Planting', 'Mountain Ride'],
-      description: 'Epic ride through the Himalayas with 200 trees planted',
-    },
-    {
-      id: 2,
-      image: 'https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=500',
-      title: 'Coastal Conservation Ride',
-      location: 'Australia',
-      city: 'Sydney',
-      year: '2024',
-      tags: ['Beach Cleanup', 'Conservation'],
-      description: 'Coastal cleanup and tree planting along the Pacific Coast',
-    },
-    {
-      id: 3,
-      image: 'https://images.pexels.com/photos/1005648/pexels-photo-1005648.jpeg?auto=compress&cs=tinysrgb&w=500',
-      title: 'Forest Restoration Project',
-      location: 'Canada',
-      city: 'Vancouver',
-      year: '2023',
-      tags: ['Reforestation', 'Group Ride'],
-      description: 'Massive reforestation effort with local communities',
-    },
-    {
-      id: 4,
-      image: 'https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=500',
-      title: 'Desert Oasis Initiative',
-      location: 'UAE',
-      city: 'Dubai',
-      year: '2023',
-      tags: ['Desert Ride', 'Oasis Creation'],
-      description: 'Creating green oases in the desert landscape',
-    },
-    {
-      id: 5,
-      image: 'https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=500',
-      title: 'Amazon Conservation Ride',
-      location: 'Brazil',
-      city: 'Manaus',
-      year: '2024',
-      tags: ['Amazon', 'Conservation'],
-      description: 'Protecting the lungs of the Earth through awareness rides',
-    },
-    {
-      id: 6,
-      image: 'https://images.pexels.com/photos/1005648/pexels-photo-1005648.jpeg?auto=compress&cs=tinysrgb&w=500',
-      title: 'Urban Green Initiative',
-      location: 'Japan',
-      city: 'Tokyo',
-      year: '2022',
-      tags: ['Urban Planting', 'City Ride'],
-      description: 'Bringing green spaces to urban environments',
-    },
-    {
-      id: 7,
-      image: 'https://images.pexels.com/photos/1119796/pexels-photo-1119796.jpeg?auto=compress&cs=tinysrgb&w=500',
-      title: 'European Unity Ride',
-      location: 'Germany',
-      city: 'Berlin',
-      year: '2022',
-      tags: ['Unity', 'Cross-border'],
-      description: 'Connecting European riders for environmental action',
-    },
-    {
-      id: 8,
-      image: 'https://images.pexels.com/photos/1416530/pexels-photo-1416530.jpeg?auto=compress&cs=tinysrgb&w=500',
-      title: 'Sahara Green Project',
-      location: 'Morocco',
-      city: 'Marrakech',
-      year: '2022',
-      tags: ['Desert', 'Innovation'],
-      description: 'Innovative desert greening techniques in North Africa',
-    },
-  ];
 };
 
 /**
@@ -126,7 +64,7 @@ const getGalleryData = () => {
  * Filters photos based on city and country parameters from URL.
  * Supports flexible matching for different location formats.
  */
-const filterPhotosByLocation = (photos: any[], city?: string, country?: string) => {
+const filterPhotosByLocation = (photos: GalleryItem[], city?: string, country?: string) => {
   if (!city && !country) return photos;
   
   return photos.filter(photo => {
@@ -142,26 +80,102 @@ const filterPhotosByLocation = (photos: any[], city?: string, country?: string) 
  * Organizes photos by year in descending order (newest first).
  * Maintains location context for filtered views.
  */
-const groupPhotosByYear = (photos: any[]) => {
+const groupPhotosByYear = (photos: GalleryItem[]) => {
   const grouped = photos.reduce((acc, photo) => {
     if (!acc[photo.year]) {
       acc[photo.year] = [];
     }
     acc[photo.year].push(photo);
     return acc;
-  }, {} as Record<string, any[]>);
+  }, {} as Record<string, GalleryItem[]>);
 
   // Sort photos within each year by title
- 
+  Object.keys(grouped).forEach(year => {
+    grouped[year].sort((a, b) => a.title.localeCompare(b.title));
+  });
 
   return grouped;
 };
 
+interface GalleryImageProps {
+  src: string;
+  alt: string;
+  className?: string;
+  fallbackSrc?: string;
+  onError?: () => void;
+}
+
+export function GalleryImage({ 
+  src, 
+  alt, 
+  className = "", 
+  fallbackSrc,
+  onError 
+}: GalleryImageProps) {
+  const [imageError, setImageError] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState(src);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const handleImageError = () => {
+    console.error('Failed to load image:', currentSrc);
+    setImageError(true);
+    setIsLoading(false);
+    
+    if (fallbackSrc && currentSrc !== fallbackSrc) {
+      setCurrentSrc(fallbackSrc);
+      setImageError(false);
+      setIsLoading(true);
+    } else {
+      onError?.();
+    }
+  };
+
+  const handleImageLoad = () => {
+    setIsLoading(false);
+    setImageError(false);
+  };
+
+  if (imageError) {
+    return (
+      <div className={${className} flex items-center justify-center bg-gray-200 dark:bg-gray-700}>
+        <div className="text-center p-8">
+          <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Image failed to load
+          </p>
+          <p className="text-xs text-gray-400 mt-1 break-all">
+            {src}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      {isLoading && (
+        <div className={${className} flex items-center justify-center bg-gray-200 dark:bg-gray-700 animate-pulse}>
+          <Image className="h-12 w-12 text-gray-400" />
+        </div>
+      )}
+      <img
+        src={currentSrc}
+        alt={alt}
+        className={${className} ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300}
+        onLoad={handleImageLoad}
+        onError={handleImageError}
+        loading="lazy"
+      />
+    </div>
+  );}
+
 export default function GalleryPage() {
-  const [galleryData, setGalleryData] = useState<any[]>([]);
-  const [filteredPhotos, setFilteredPhotos] = useState<any[]>([]);
-  const [groupedPhotos, setGroupedPhotos] = useState<Record<string, any[]>>({});
+  const [galleryData, setGalleryData] = useState<GalleryItem[]>([]);
+  const [filteredPhotos, setFilteredPhotos] = useState<GalleryItem[]>([]);
+  const [groupedPhotos, setGroupedPhotos] = useState<Record<string, GalleryItem[]>>({});
   const [locationFilter, setLocationFilter] = useState<{city?: string, country?: string}>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -169,12 +183,19 @@ export default function GalleryPage() {
   /**
    * Data Loading and URL Parameter Processing
    * 
-   * Loads initial data, processes URL parameters for location filtering,
+   * Loads initial data from API, processes URL parameters for location filtering,
    * and sets up real-time updates from admin panel.
    */
   useEffect(() => {
-    const loadData = () => {
-      const data = getGalleryData();
+    loadData();
+  }, [searchParams]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const data = await getGalleryData();
       setGalleryData(data);
       
       // Process URL parameters for location filtering
@@ -191,36 +212,22 @@ export default function GalleryPage() {
         setFilteredPhotos(data);
         setGroupedPhotos(groupPhotosByYear(data));
       }
-    };
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load gallery data');
+      console.error('Error loading gallery data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  /**
+   * Manual Refresh Function
+   * 
+   * Allows users to manually refresh the gallery data.
+   */
+  const handleRefresh = () => {
     loadData();
-
-    // Listen for real-time updates from admin panel
-    const handleAdminUpdate = (event: CustomEvent) => {
-      if (event.detail.section === 'gallery') {
-        const updatedData = event.detail.data.filter((item: any) => 
-          item.title && item.location && item.city && item.year && item.image
-        );
-        setGalleryData(updatedData);
-        
-        // Reapply current filters
-        const city = searchParams.get('city');
-        const country = searchParams.get('country');
-        
-        if (city || country) {
-          const filtered = filterPhotosByLocation(updatedData, city || undefined, country || undefined);
-          setFilteredPhotos(filtered);
-          setGroupedPhotos(groupPhotosByYear(filtered));
-        } else {
-          setFilteredPhotos(updatedData);
-          setGroupedPhotos(groupPhotosByYear(updatedData));
-        }
-      }
-    };
-
-    window.addEventListener('adminDataUpdate', handleAdminUpdate as EventListener);
-    return () => window.removeEventListener('adminDataUpdate', handleAdminUpdate as EventListener);
-  }, [searchParams]);
+  };
 
   /**
    * Clear Location Filter
@@ -244,7 +251,7 @@ export default function GalleryPage() {
    */
   const getLocationDisplayName = () => {
     if (locationFilter.city && locationFilter.country) {
-      return `${locationFilter.city}, ${locationFilter.country}`;
+      return ${locationFilter.city}, ${locationFilter.country};
     } else if (locationFilter.city) {
       return locationFilter.city;
     } else if (locationFilter.country) {
@@ -253,6 +260,33 @@ export default function GalleryPage() {
     return '';
   };
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="h-12 w-12 text-green-500 dark:text-blue-500 animate-spin mx-auto mb-4" />
+          <p className="text-xl text-gray-600 dark:text-gray-300">Loading gallery...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <p className="text-xl text-red-600 mb-4">{error}</p>
+          <Button onClick={handleRefresh} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-12">
@@ -261,9 +295,6 @@ export default function GalleryPage() {
           <div className="flex items-center justify-center space-x-3 mb-6">
             <div className="relative">
               <Camera className="h-12 w-12 text-green-500 dark:text-blue-500" />
-              {/* <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
-               <Bike className="h-3 w-3 text-white" /> 
-              </div> */}
             </div>
           </div>
           
@@ -292,12 +323,18 @@ export default function GalleryPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <h1 className="text-5xl font-bold bg-green-500 dark:bg-blue-500 bg-clip-text text-transparent">
+              <h1 className="text-5xl font-bold bg-gradient-to-r from-green-600 via-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Photo Gallery
               </h1>
               <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto leading-relaxed">
                 Explore stunning photos from our global community of riders making a difference around the world. Every image tells a story of environmental action and adventure.
               </p>
+              <div className="flex items-center justify-center">
+                <Button onClick={handleRefresh} variant="outline" size="sm">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh Gallery
+                </Button>
+              </div>
             </div>
           )}
         </div>
@@ -335,7 +372,7 @@ export default function GalleryPage() {
             <div key={year} className="space-y-8">
               {/* Year Header with Enhanced Context */}
               <div className="text-center">
-                <div className="inline-flex items-center space-x-3 bg-green-500 dark:bg-blue-500  text-white px-8 py-4 rounded-full shadow-lg">
+                <div className="inline-flex items-center space-x-3 bg-gradient-to-r from-green-500 to-blue-500 text-white px-8 py-4 rounded-full shadow-lg">
                   <Calendar className="h-6 w-6" />
                   <h2 className="text-3xl font-bold">{year}</h2>
                   <Badge variant="secondary" className="bg-white/20 text-white">
@@ -355,13 +392,14 @@ export default function GalleryPage() {
                   <Dialog key={item.id}>
                     <DialogTrigger asChild>
                       <Card className="card-hover cursor-pointer border-0 shadow-xl group overflow-hidden">
-                        <div className=" inset-0 bg-gradient-to-br from-green-400/10 to-blue-400/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
+                        <div className="inset-0 bg-gradient-to-br from-green-400/10 to-blue-400/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
                         <CardContent className="p-0 relative">
                           <div className="relative overflow-hidden">
                             <img
                               src={item.image}
                               alt={item.title}
                               className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-110"
+                              loading="lazy"
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                             <div className="absolute top-4 right-4">
@@ -463,16 +501,22 @@ export default function GalleryPage() {
                 </Button>
               </div>
             ) : (
-              <p className="text-xl text-gray-600 dark:text-gray-400">
-                No photos available yet. Check back soon for amazing adventures!
-              </p>
+              <div className="space-y-4">
+                <p className="text-xl text-gray-600 dark:text-gray-400">
+                  No photos available yet. Check back soon for amazing adventures!
+                </p>
+                <Button onClick={handleRefresh} variant="outline">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh Gallery
+                </Button>
+              </div>
             )}
           </div>
         )}
 
         {/* Enhanced Stats Section */}
-        {!locationFilter.city && !locationFilter.country && (
-          <div className="mt-20 dark:bg-gray-800 bg-white rounded-2xl p-8 shadow-lg ">
+        {!locationFilter.city && !locationFilter.country && galleryData.length > 0 && (
+          <div className="mt-20 bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg">
             <h3 className="text-3xl font-bold mb-8 text-center">Gallery Journey Through Time</h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               <div className="text-center">
@@ -498,11 +542,11 @@ export default function GalleryPage() {
             </div>
             
             {/* Year-wise Breakdown */}
-            <div className="mt-8 pt-8 border-t border-white/20">
+            <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
               <h4 className="text-xl font-semibold mb-4 text-center">Photos by Year</h4>
               <div className="flex flex-wrap justify-center gap-4">
                 {years.map((year) => (
-                  <div key={year} className="bg-white/10 rounded-lg px-4 py-2 text-center">
+                  <div key={year} className="bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2 text-center">
                     <div className="text-lg font-bold">{year}</div>
                     <div className="text-sm text-green-500 dark:text-blue-500">{groupedPhotos[year].length} photos</div>
                   </div>
