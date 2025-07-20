@@ -106,12 +106,13 @@ export function Footer() {
               <span className="text-red-500 animate-pulse">❤️</span>
               <span>by</span>
               <Link
-                href="https://i10ai.com"
+                href="https://www.i10ai.com/"
+                
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:text-primary/80 transition-colors font-medium"
               >
-                I10AI
+                I10AI Solutions
               </Link>
             </p>
           </div>

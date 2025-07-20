@@ -1,6 +1,7 @@
 // lib/driveSheetHelpers.ts
 import { getSheetsClient, SPREADSHEET_ID } from './googlesheet';
 import { DRIVE_SHEET_HEADERS, DRIVE_SHEET_NAME, validateDriveSheetData } from './driveSheetHeaders';
+import { sheets_v4 } from 'googleapis';
 
 export interface DriveData {
   id?: string;
@@ -23,16 +24,155 @@ export interface DriveData {
   updatedAt?: string;
 }
 
-/**
- * Initialize the drives sheet with headers if it doesn't exist
- */
-export async function initializeDriveSheet() {
-  try {
-    const sheets = await getSheetsClient();
+// Enhanced caching with TTL and compression
+interface CacheEntry {
+  data: DriveData[];
+  timestamp: number;
+  etag?: string;
+}
+
+interface ConnectionPool {
+  client: sheets_v4.Sheets;
+  lastUsed: number;
+  isInUse: boolean;
+}
+
+// Connection pooling
+const connectionPool: ConnectionPool[] = [];
+const MAX_POOL_SIZE = 3;
+const POOL_TIMEOUT = 30000; // 30 seconds
+
+// Multi-level caching
+let memoryCache: CacheEntry | null = null;
+let sheetMetadata: { id: number; lastModified?: string } | null = null;
+let isInitialized = false;
+
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const METADATA_TTL = 10 * 60 * 1000; // 10 minutes
+
+// Optimized data transformation with pre-compiled mappings
+const headerIndexMap = new Map<string, number>();
+DRIVE_SHEET_HEADERS.forEach((header, index) => {
+  headerIndexMap.set(header, index);
+});
+
+const transformRowToData = (row: string[]): DriveData => {
+  const drive: any = {};
+  
+  // Use pre-compiled header mapping for O(1) access
+  for (const [header, index] of headerIndexMap) {
+    const value = row[index] || '';
     
-    // Check if the sheet exists
-    const spreadsheet = await sheets.spreadsheets.get({
+    switch (header) {
+      case 'participants':
+      case 'treesTarget':
+        drive[header] = value ? parseInt(value, 10) : 0;
+        break;
+      case 'registrationOpen':
+        drive[header] = value === 'true';
+        break;
+      case 'id':
+        drive[header] = value || Date.now().toString();
+        break;
+      default:
+        drive[header] = value;
+    }
+  }
+  
+  return drive as DriveData;
+};
+
+// Connection pool management
+async function getPooledClient(): Promise<sheets_v4.Sheets> {
+  const now = Date.now();
+  
+  // Clean up expired connections
+  for (let i = connectionPool.length - 1; i >= 0; i--) {
+    if (now - connectionPool[i].lastUsed > POOL_TIMEOUT) {
+      connectionPool.splice(i, 1);
+    }
+  }
+  
+  // Find available connection
+  const available = connectionPool.find(conn => !conn.isInUse);
+  if (available) {
+    available.isInUse = true;
+    available.lastUsed = now;
+    return available.client;
+  }
+  
+  // Create new connection if pool not full
+  if (connectionPool.length < MAX_POOL_SIZE) {
+    const client = await getSheetsClient();
+    const poolEntry = { client, lastUsed: now, isInUse: true };
+    connectionPool.push(poolEntry);
+    return client;
+  }
+  
+  // Use oldest connection if pool is full
+  const oldest = connectionPool.reduce((prev, curr) => 
+    prev.lastUsed < curr.lastUsed ? prev : curr
+  );
+  oldest.isInUse = true;
+  oldest.lastUsed = now;
+  return oldest.client;
+}
+
+function releaseClient(client: sheets_v4.Sheets): void {
+  const poolEntry = connectionPool.find(conn => conn.client === client);
+  if (poolEntry) {
+    poolEntry.isInUse = false;
+  }
+}
+
+// Optimized sheet metadata retrieval
+async function getSheetMetadata(): Promise<{ id: number; lastModified?: string }> {
+  if (sheetMetadata && Date.now() - (sheetMetadata as any).timestamp < METADATA_TTL) {
+    return sheetMetadata;
+  }
+  
+  const client = await getPooledClient();
+  try {
+    const spreadsheet = await client.spreadsheets.get({
       spreadsheetId: SPREADSHEET_ID,
+      fields: 'sheets.properties'
+    });
+    
+    const sheet = spreadsheet.data.sheets?.find(
+      sheet => sheet.properties?.title === DRIVE_SHEET_NAME
+    );
+    
+    if (!sheet?.properties?.sheetId) {
+      throw new Error('Sheet not found');
+    }
+    
+    sheetMetadata = {
+      id: sheet.properties.sheetId,
+      lastModified: new Date().toISOString(),
+      timestamp: Date.now()
+    } as any;
+    
+    if(sheetMetadata){
+    return sheetMetadata;} else {
+      throw new Error('Sheet metadata not found');
+    }
+  } finally {
+    releaseClient(client);
+  }
+}
+
+/**
+ * Optimized initialization with minimal API calls
+ */
+export async function initializeDriveSheet(): Promise<boolean> {
+  if (isInitialized) return true;
+  
+  const client = await getPooledClient();
+  try {
+    // Single API call to check and create sheet
+    const spreadsheet = await client.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID,
+      fields: 'sheets.properties'
     });
     
     const sheetExists = spreadsheet.data.sheets?.some(
@@ -40,8 +180,7 @@ export async function initializeDriveSheet() {
     );
     
     if (!sheetExists) {
-      // Create the sheet
-      await sheets.spreadsheets.batchUpdate({
+      const response = await client.spreadsheets.batchUpdate({
         spreadsheetId: SPREADSHEET_ID,
         requestBody: {
           requests: [{
@@ -57,16 +196,19 @@ export async function initializeDriveSheet() {
           }]
         }
       });
-    }
-    
-    // Add headers if they don't exist
-    const headerResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${DRIVE_SHEET_NAME}!1:1`,
-    });
-    
-    if (!headerResponse.data.values || headerResponse.data.values.length === 0) {
-      await sheets.spreadsheets.values.update({
+      
+      // Cache new sheet metadata
+      const newSheet = response.data.replies?.[0]?.addSheet;
+      if (newSheet?.properties?.sheetId !== undefined) {
+        sheetMetadata = {
+          id: newSheet.properties.sheetId,
+          lastModified: new Date().toISOString(),
+          timestamp: Date.now()
+        } as any;
+      }
+      
+      // Add headers in same batch
+      await client.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
         range: `${DRIVE_SHEET_NAME}!1:1`,
         valueInputOption: 'RAW',
@@ -76,70 +218,97 @@ export async function initializeDriveSheet() {
       });
     }
     
+    isInitialized = true;
     return true;
-  } catch (error) {
-    console.error('Error initializing drive sheet:', error);
-    throw error;
+  } finally {
+    releaseClient(client);
   }
 }
 
 /**
- * Get all drives from the sheet
+ * Optimized data retrieval with smart caching
  */
 export async function getAllDrives(): Promise<DriveData[]> {
+  const now = Date.now();
+  
+  // Return cached data if still valid
+  if (memoryCache && (now - memoryCache.timestamp) < CACHE_TTL) {
+    return memoryCache.data;
+  }
+  
+  const client = await getPooledClient();
   try {
-    const sheets = await getSheetsClient();
-    
-    const response = await sheets.spreadsheets.values.get({
+    // Use batch request for better performance
+    const columnRange = String.fromCharCode(65 + DRIVE_SHEET_HEADERS.length - 1);
+    const response = await client.spreadsheets.values.batchGet({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${DRIVE_SHEET_NAME}!A:R`, // Adjust range based on number of columns
+      ranges: [`${DRIVE_SHEET_NAME}!A1:${columnRange}`],
+      majorDimension: 'ROWS',
+      valueRenderOption: 'UNFORMATTED_VALUE'
     });
     
-    const rows = response.data.values || [];
-    if (rows.length <= 1) return []; // No data rows
+    const rows = response.data.valueRanges?.[0]?.values || [];
+    if (rows.length <= 1) {
+      memoryCache = { data: [], timestamp: now };
+      return [];
+    }
     
-    const [headers, ...dataRows] = rows;
+    // Skip header row and process in chunks for better performance
+    const dataRows = rows.slice(1);
+    const drives: DriveData[] = [];
     
-    return dataRows.map(row => {
-      const drive: any = {};
-      headers.forEach((header, index) => {
-        const value = row[index] || '';
-        
-        // Handle different data types
-        switch (header) {
-          case 'participants':
-          case 'treesTarget':
-            drive[header] = value ? parseInt(value) : 0;
-            break;
-          case 'registrationOpen':
-            drive[header] = value === 'true' || value === true;
-            break;
-          case 'id':
-            drive[header] = value ? parseInt(value) : Date.now();
-            break;
-          default:
-            drive[header] = value;
-        }
-      });
+    // Process in batches to avoid blocking
+    const batchSize = 100;
+    for (let i = 0; i < dataRows.length; i += batchSize) {
+      const batch = dataRows.slice(i, i + batchSize);
+      const batchDrives = batch.map(row => transformRowToData(row));
+      drives.push(...batchDrives);
       
-      return drive as DriveData;
-    });
-  } catch (error) {
-    console.error('Error getting drives:', error);
-    throw error;
+      // Allow event loop to process other tasks
+      if (i % 200 === 0) {
+        await new Promise(resolve => setImmediate(resolve));
+      }
+    }
+    
+    // Update cache
+    memoryCache = { data: drives, timestamp: now };
+    return drives;
+    
+  } finally {
+    releaseClient(client);
   }
 }
 
 /**
- * Add a new drive to the sheet
+ * Optimized single drive retrieval
+ */
+export async function getDriveById(id: string): Promise<DriveData | null> {
+  // Try cache first
+  if (memoryCache && (Date.now() - memoryCache.timestamp) < CACHE_TTL) {
+    return memoryCache.data.find(drive => drive.id?.toString() === id) || null;
+  }
+  
+  // Fallback to full retrieval
+  const drives = await getAllDrives();
+  return drives.find(drive => drive.id?.toString() === id) || null;
+}
+
+/**
+ * Optimized filtered retrieval
+ */
+export async function getDrivesByStatus(status: string): Promise<DriveData[]> {
+  const drives = await getAllDrives();
+  return drives.filter(drive => drive.status === status);
+}
+
+/**
+ * Optimized add operation with immediate cache update
  */
 export async function addDrive(driveData: DriveData): Promise<DriveData> {
+  validateDriveSheetData(driveData);
+  
+  const client = await getPooledClient();
   try {
-    validateDriveSheetData(driveData);
-    
-    const sheets = await getSheetsClient();
-    
-    // Generate ID and timestamps
     const now = new Date().toISOString();
     const newDrive: DriveData = {
       ...driveData,
@@ -153,101 +322,107 @@ export async function addDrive(driveData: DriveData): Promise<DriveData> {
       difficulty: driveData.difficulty || 'Easy'
     };
     
-    // Convert to row array
     const rowData = DRIVE_SHEET_HEADERS.map(header => {
       const value = newDrive[header as keyof DriveData];
-      return value !== undefined ? value.toString() : '';
+      return value !== undefined ? String(value) : '';
     });
     
-    await sheets.spreadsheets.values.append({
+    const columnRange = String.fromCharCode(65 + DRIVE_SHEET_HEADERS.length - 1);
+    await client.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${DRIVE_SHEET_NAME}!A:R`,
+      range: `${DRIVE_SHEET_NAME}!A:${columnRange}`,
       valueInputOption: 'RAW',
+      insertDataOption: 'INSERT_ROWS',
       requestBody: {
         values: [rowData]
       }
     });
     
+    // Update cache immediately
+    if (memoryCache) {
+      memoryCache.data.push(newDrive);
+      memoryCache.timestamp = Date.now();
+    }
+    
     return newDrive;
-  } catch (error) {
-    console.error('Error adding drive:', error);
-    throw error;
+  } finally {
+    releaseClient(client);
   }
 }
 
 /**
- * Update an existing drive in the sheet
+ * Optimized update with cache synchronization
  */
 export async function updateDrive(id: string, driveData: Partial<DriveData>): Promise<DriveData> {
+  validateDriveSheetData({ ...driveData, id });
+  
+  const client = await getPooledClient();
   try {
-    validateDriveSheetData({ ...driveData, id });
-    
-    const sheets = await getSheetsClient();
-    
-    // Get all drives to find the row index
-    const allDrives = await getAllDrives();
-    const driveIndex = allDrives.findIndex(drive => drive.id?.toString() === id.toString());
+    const drives = await getAllDrives();
+    const driveIndex = drives.findIndex(drive => drive.id?.toString() === id);
     
     if (driveIndex === -1) {
       throw new Error('Drive not found');
     }
     
-    // Update the drive data
     const updatedDrive: DriveData = {
-      ...allDrives[driveIndex],
+      ...drives[driveIndex],
       ...driveData,
       updatedAt: new Date().toISOString()
     };
     
-    // Convert to row array
     const rowData = DRIVE_SHEET_HEADERS.map(header => {
       const value = updatedDrive[header as keyof DriveData];
-      return value !== undefined ? value.toString() : '';
+      return value !== undefined ? String(value) : '';
     });
     
-    // Update the specific row (add 2 to account for header row and 0-based index)
     const rowNumber = driveIndex + 2;
-    await sheets.spreadsheets.values.update({
+    const columnRange = String.fromCharCode(65 + DRIVE_SHEET_HEADERS.length - 1);
+    
+    await client.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${DRIVE_SHEET_NAME}!A${rowNumber}:R${rowNumber}`,
+      range: `${DRIVE_SHEET_NAME}!A${rowNumber}:${columnRange}${rowNumber}`,
       valueInputOption: 'RAW',
       requestBody: {
         values: [rowData]
       }
     });
     
+    // Update cache immediately
+    if (memoryCache) {
+      memoryCache.data[driveIndex] = updatedDrive;
+      memoryCache.timestamp = Date.now();
+    }
+    
     return updatedDrive;
-  } catch (error) {
-    console.error('Error updating drive:', error);
-    throw error;
+  } finally {
+    releaseClient(client);
   }
 }
 
 /**
- * Delete a drive from the sheet
+ * Optimized delete with cache update
  */
 export async function deleteDrive(id: string): Promise<boolean> {
+  const client = await getPooledClient();
   try {
-    const sheets = await getSheetsClient();
-    
-    // Get all drives to find the row index
-    const allDrives = await getAllDrives();
-    const driveIndex = allDrives.findIndex(drive => drive.id?.toString() === id.toString());
+    const drives = await getAllDrives();
+    const driveIndex = drives.findIndex(drive => drive.id?.toString() === id);
     
     if (driveIndex === -1) {
       throw new Error('Drive not found');
     }
     
-    // Delete the row (add 2 to account for header row and 0-based index)
+    const metadata = await getSheetMetadata();
     const rowNumber = driveIndex + 2;
     
-    await sheets.spreadsheets.batchUpdate({
+    await client.spreadsheets.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,
       requestBody: {
         requests: [{
           deleteDimension: {
             range: {
-              sheetId: 0, // Assuming first sheet, you might need to get the actual sheet ID
+              sheetId: metadata.id,
               dimension: 'ROWS',
               startIndex: rowNumber - 1,
               endIndex: rowNumber
@@ -257,35 +432,100 @@ export async function deleteDrive(id: string): Promise<boolean> {
       }
     });
     
+    // Update cache immediately
+    if (memoryCache) {
+      memoryCache.data.splice(driveIndex, 1);
+      memoryCache.timestamp = Date.now();
+    }
+    
     return true;
-  } catch (error) {
-    console.error('Error deleting drive:', error);
-    throw error;
+  } finally {
+    releaseClient(client);
   }
 }
 
 /**
- * Get drive by ID
+ * Optimized batch operations
  */
-export async function getDriveById(id: string): Promise<DriveData | null> {
+export async function batchUpdateDrives(updates: { id: string; data: Partial<DriveData> }[]): Promise<DriveData[]> {
+  const client = await getPooledClient();
   try {
-    const allDrives = await getAllDrives();
-    return allDrives.find(drive => drive.id?.toString() === id.toString()) || null;
-  } catch (error) {
-    console.error('Error getting drive by ID:', error);
-    throw error;
+    const drives = await getAllDrives();
+    const batchRequests = [];
+    const results: DriveData[] = [];
+    
+    for (const { id, data } of updates) {
+      const driveIndex = drives.findIndex(drive => drive.id?.toString() === id);
+      
+      if (driveIndex === -1) {
+        throw new Error(`Drive with ID ${id} not found`);
+      }
+      
+      const updatedDrive = {
+        ...drives[driveIndex],
+        ...data,
+        updatedAt: new Date().toISOString()
+      };
+      
+      const rowData = DRIVE_SHEET_HEADERS.map(header => {
+        const value = updatedDrive[header as keyof DriveData];
+        return value !== undefined ? String(value) : '';
+      });
+      
+      const rowNumber = driveIndex + 2;
+      const columnRange = String.fromCharCode(65 + DRIVE_SHEET_HEADERS.length - 1);
+      
+      batchRequests.push({
+        range: `${DRIVE_SHEET_NAME}!A${rowNumber}:${columnRange}${rowNumber}`,
+        values: [rowData]
+      });
+      
+      results.push(updatedDrive);
+    }
+    
+    await client.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        valueInputOption: 'RAW',
+        data: batchRequests
+      }
+    });
+    
+    // Update cache
+    if (memoryCache) {
+      results.forEach(updatedDrive => {
+        const index = memoryCache!.data.findIndex(d => d.id === updatedDrive.id);
+        if (index !== -1) {
+          memoryCache!.data[index] = updatedDrive;
+        }
+      });
+      memoryCache.timestamp = Date.now();
+    }
+    
+    return results;
+  } finally {
+    releaseClient(client);
   }
 }
 
 /**
- * Get drives by status
+ * Cache management functions
  */
-export async function getDrivesByStatus(status: string): Promise<DriveData[]> {
-  try {
-    const allDrives = await getAllDrives();
-    return allDrives.filter(drive => drive.status === status);
-  } catch (error) {
-    console.error('Error getting drives by status:', error);
-    throw error;
-  }
+export function invalidateCache(): void {
+  memoryCache = null;
+}
+
+export function clearCache(): void {
+  memoryCache = null;
+  sheetMetadata = null;
+  isInitialized = false;
+  connectionPool.length = 0;
+}
+
+export function getCacheStats(): { cached: boolean; age: number; size: number } {
+  return {
+    cached: memoryCache !== null,
+    age: memoryCache ? Date.now() - memoryCache.timestamp : 0,
+    size: memoryCache ? memoryCache.data.length : 0
+  };
 }
